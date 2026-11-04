@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0e0d0c">
+<title>Color Cast Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Style: true-black flat, warm near-black ground (a home, not a monitor).
+   Elevation by lightness only: ground #0e0d0c -> card #181716 -> control #24221f. No borders, no shadows at rest.
+   One data hue: Color Cast lime #a8e036 (same as CC Dashboard), only on live/ON data. Primary control = white pill.
+   The stage is a fixed 64 x 36 rem landscape canvas (1rem = 1/36 of the screen height), letterboxed on any screen.
+   Grid at 640x360: 16 | 372 | 12 | 224 | 16 = 640.  Height: 16 | 328 | 16 = 360. */
+:root{
+  --ground:#0e0d0c; --surface:#181716; --raised:#24221f; --pressed:#2e2b27;
+  --text:#ffffff; --muted:#b4b4b4; --faint:#949494; --dim:#5c5852;
+  --accent:#a8e036; --accent-bg:#1e2610;
+  --warning:#e5a93b; --warning-bg:#2b2414;
+  --negative:#e5566f;
+}
+html{font-size:2.7778vh;}
+@media (min-aspect-ratio:16/9){ html{font-size:2.7778vh;} }
+@media (max-aspect-ratio:16/9){ html{font-size:1.5625vw;} }
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;background:var(--ground);}
+body{color:var(--text);font-family:"Inter",Roboto,system-ui,sans-serif;font-size:1.4rem;line-height:1.35;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-font-smoothing:antialiased;}
+.num{font-variant-numeric:tabular-nums;-webkit-font-feature-settings:"tnum";font-feature-settings:"tnum";}
+#stage{position:absolute;left:50%;top:50%;width:64rem;height:36rem;margin:-18rem 0 0 -32rem;}
+#wrap{position:absolute;left:1.6rem;top:1.6rem;right:1.6rem;bottom:1.6rem;-webkit-transition:-webkit-transform 2s;transition:transform 2s;}
+.flex{display:-webkit-flex;display:flex;}
+.colf{display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;}
+.grow{-webkit-flex:1;flex:1;min-width:0;min-height:0;}
+.between{-webkit-justify-content:space-between;justify-content:space-between;}
+.center{-webkit-align-items:center;align-items:center;}
+#left{position:absolute;left:0;top:0;width:37.2rem;bottom:0;}
+#right{position:absolute;right:0;top:0;width:22.4rem;bottom:0;}
+
+.card{background:var(--surface);border-radius:2rem;padding:1.4rem 1.6rem;}
+.h{font-size:1.4rem;font-weight:600;color:var(--text);}
+.meta{font-size:1.2rem;color:var(--faint);}
+.muted{color:var(--muted);}
+
+/* clock block */
+#brand{font-size:1.2rem;color:var(--faint);}
+#brand b{font-weight:600;color:var(--muted);}
+.mark{display:inline-block;width:1.4rem;height:1.4rem;margin-right:0.7rem;vertical-align:-0.25rem;}
+#gear{color:var(--faint);padding:0.6rem 0 0.6rem 1.2rem;cursor:pointer;line-height:0;}
+#gear svg{width:1.6rem;height:1.6rem;}
+#gear:active{color:var(--text);}
+#clock{margin-top:0.8rem;}
+#time{font-size:9.6rem;font-weight:500;line-height:0.92;letter-spacing:-0.35rem;}
+#ampm{font-size:1.8rem;font-weight:500;color:var(--faint);margin-left:1rem;padding-bottom:1rem;}
+#sec{display:block;font-size:1.4rem;color:var(--dim);margin-top:0.2rem;}
+#date{font-size:1.6rem;font-weight:500;margin-top:1rem;}
+#weather{font-size:1.4rem;color:var(--muted);margin-top:0.4rem;}
+#remind{display:inline-block;font-size:1.25rem;color:var(--muted);background:var(--raised);border-radius:999px;padding:0.45rem 1.2rem;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#remind b{font-weight:600;color:var(--text);}
+#remind.soon{background:var(--warning-bg);color:var(--warning);}
+#remind.soon b{color:var(--warning);}
+
+/* light bar card */
+#lbCard{position:absolute;left:0;right:0;bottom:0;height:13.6rem;padding:1.3rem 1.6rem;}
+#leds{margin:0.9rem 0 0.6rem;height:0.8rem;}
+#leds i{display:block;-webkit-flex:1;flex:1;height:0.8rem;margin-right:0.3rem;border-radius:999px;background:var(--raised);}
+#leds i:last-child{margin-right:0;}
+.pill{display:inline-block;height:2.8rem;line-height:2.8rem;padding:0 1.4rem;border-radius:999px;background:var(--raised);color:var(--muted);font-size:1.25rem;font-weight:500;text-align:center;cursor:pointer;white-space:nowrap;}
+.pill:active{background:var(--pressed);}
+.pill.inv{background:var(--text);color:#000;}
+.pill.inv:active{background:#d9d9d9;}
+#lbPower{min-width:5.6rem;height:2.4rem;line-height:2.4rem;}
+#bri{height:2.6rem;}
+#bri svg{width:1.4rem;height:1.4rem;margin-right:1rem;}
+#briTxt{width:4.4rem;text-align:right;font-size:1.25rem;color:var(--muted);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:0.4rem;border-radius:999px;background:var(--raised);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:2.2rem;height:2.2rem;border-radius:50%;background:var(--text);}
+#modes{margin-top:0.7rem;background:var(--raised);border-radius:999px;padding:0.3rem;}
+#modes div{-webkit-flex:1;flex:1;height:2.4rem;line-height:2.4rem;border-radius:999px;text-align:center;font-size:1.2rem;font-weight:500;color:var(--muted);cursor:pointer;}
+#modes div.sel{background:var(--text);color:#000;}
+
+/* rooms */
+#srCard{position:absolute;left:0;right:0;top:0;height:20.2rem;}
+#mrCard{position:absolute;left:0;right:0;bottom:0;height:11.4rem;}
+.live{font-size:1.2rem;color:var(--faint);white-space:nowrap;}
+#srCard .h,#srMode{white-space:nowrap;}
+.live i{display:inline-block;width:0.7rem;height:0.7rem;border-radius:50%;background:var(--dim);margin-right:0.5rem;vertical-align:0.05rem;}
+.live.ok i{background:var(--accent);}
+#workBtn{display:block;width:100%;margin-top:1rem;height:3.4rem;line-height:3.4rem;font-size:1.35rem;}
+#workBtn.stop{color:var(--text);}
+.tiles{margin-top:0.8rem;-webkit-flex-wrap:wrap;flex-wrap:wrap;}
+.tile{width:48%;margin-right:4%;height:4.7rem;padding:0 1.1rem;border-radius:1.2rem;background:var(--raised);cursor:pointer;}
+.tile:nth-child(2n){margin-right:0;}
+#srTiles .tile:nth-child(-n+2){margin-bottom:0.8rem;}
+.tile:active{background:var(--pressed);}
+.tile .n{font-size:1.25rem;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tile .s{font-size:1.15rem;color:var(--dim);margin-left:0.6rem;white-space:nowrap;}
+.tile.on .n{color:var(--text);}
+.tile.on .s{color:var(--accent);}
+.tile.ro{cursor:default;}
+.tile.ro:active{background:var(--raised);}
+.tile.alert{background:var(--warning-bg);}
+.tile.alert .n,.tile.alert .s{color:var(--warning);}
+#mrTiles .tile{width:31%;margin-right:3.5%;padding:0 1rem;height:5.2rem;}
+#mrTiles .tile:nth-child(2n){margin-right:3.5%;}
+#mrTiles .tile:nth-child(3n){margin-right:0;}
+#mrTiles .tile .colf{width:100%;}
+#mrTiles .tile .s{margin-left:0;}
+
+/* overlays */
+#night{position:absolute;left:0;top:0;right:0;bottom:0;background:#000;display:none;cursor:pointer;}
+#nclock{position:absolute;font-size:8.6rem;font-weight:500;letter-spacing:-0.3rem;color:#4a3d28;-webkit-transition:left 3s,top 3s;transition:left 3s,top 3s;}
+#nclock span{display:block;font-size:1.6rem;letter-spacing:0;text-align:center;color:#352b1c;}
+#settings{position:absolute;left:0;top:0;right:0;bottom:0;background:var(--ground);display:none;padding:1.6rem;}
+#cfg{display:block;width:100%;height:28rem;margin-top:1.2rem;background:var(--surface);color:var(--muted);border:0;border-radius:1.6rem;font-family:ui-monospace,Menlo,monospace;font-size:1.15rem;line-height:1.5;padding:1.2rem 1.4rem;outline:none;-webkit-user-select:text;user-select:text;}
+#settings .pill{margin-left:0.6rem;}
+#toast{position:absolute;bottom:2.4rem;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);background:var(--text);color:#000;font-size:1.3rem;font-weight:500;padding:0.8rem 1.6rem;border-radius:999px;display:none;white-space:nowrap;box-shadow:0 0.4rem 1.6rem rgba(0,0,0,0.5);}
+</style>
+</head>
+<body>
+<div id="stage">
+<div id="wrap">
+
+  <div id="left">
+    <div class="flex between center">
+      <div id="brand"><svg class="mark" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="none" stroke="#a8e036" stroke-width="2"/><circle cx="7" cy="7" r="2.2" fill="#a8e036"/></svg><b>Color Cast</b> · Desk</div>
+      <div class="flex center" style="min-width:0;"><div id="remind">No more reminders today</div><div id="gear" role="button" aria-label="Settings"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><circle cx="8" cy="13" r="1.4" fill="currentColor"/></svg></div></div>
+    </div>
+    <div id="clock">
+      <div class="flex" style="-webkit-align-items:flex-end;align-items:flex-end;"><div id="time" class="num">--:--</div><div id="ampm">AM</div></div>
+      <div id="date">&nbsp;</div>
+      <div id="weather">Loading weather</div>
+    </div>
+
+    <div id="lbCard" class="card colf">
+      <div class="flex between center">
+        <div><span class="h">Monitor light bar</span> <span class="meta" id="wState">· offline</span></div>
+        <div class="pill" id="lbPower" role="button">Off</div>
+      </div>
+      <div id="leds" class="flex"></div>
+      <div id="bri" class="flex center">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="#949494" stroke-width="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M3 13l1.4-1.4M11.6 4.4L13 3" stroke="#949494" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <input type="range" id="lbBri" min="1" max="255" value="150" class="grow" aria-label="Brightness">
+        <span id="briTxt" class="num">59%</span>
+      </div>
+      <div id="modes" class="flex"></div>
+    </div>
+  </div>
+
+  <div id="right">
+    <div id="srCard" class="card colf">
+      <div class="flex between center">
+        <span><span class="h">Studio</span> <span class="meta" id="srMode"></span></span>
+        <span class="live" id="fbState"><i></i><span id="srTemp">offline</span></span>
+      </div>
+      <div class="pill inv" id="workBtn" role="button">Start work mode</div>
+      <div class="tiles flex" id="srTiles"></div>
+    </div>
+    <div id="mrCard" class="card colf">
+      <div class="flex between center">
+        <span class="h">Machine room</span>
+        <span class="live num" id="mrTemp"></span>
+      </div>
+      <div class="tiles flex" id="mrTiles"></div>
+    </div>
+  </div>
+
+</div>
+
+<div id="night"><div id="nclock" class="num">--:--<span></span></div></div>
+
+<div id="settings">
+  <div class="flex between center">
+    <span class="h">Settings</span>
+    <span><span class="pill" id="cfgReset">Default</span><span class="pill" id="cfgCancel">Cancel</span><span class="pill inv" id="cfgSave">Save</span></span>
+  </div>
+  <textarea id="cfg" spellcheck="false" aria-label="Settings JSON"></textarea>
+</div>
+<div id="toast"></div>
+</div>
+
+<script>
+(function(){
+var DEFAULT_CFG = {
+  wledIP: "192.168.1.50",
+  city: "Kolhapur", lat: 16.705, lon: 74.2433,
+  nightStart: 22, nightEnd: 6,
+  firebaseURL: "https://colorcast-iot-default-rtdb.asia-southeast1.firebasedatabase.app",
+  ledCount: 30,
+  lightModes: [
+    {name:"Warm", r:255, g:150, b:60, fx:0},
+    {name:"Cool", r:210, g:230, b:255, fx:0},
+    {name:"Rainbow", r:255, g:0, b:0, fx:9},
+    {name:"Breathe", r:120, g:80, b:255, fx:2}
+  ],
+  reminders: [
+    {time:"09:00", text:"Open studio"},
+    {time:"17:30", text:"Pickup"}
+  ]
+};
+
+var DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function $(id){ return document.getElementById(id); }
+function load(k, d){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } }
+function save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+function pad(n){ return n < 10 ? "0" + n : "" + n; }
+function esc(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+function toast(msg){ var t = $("toast"); t.innerHTML = esc(msg); t.style.display = "block"; clearTimeout(toast.h); toast.h = setTimeout(function(){ t.style.display = "none"; }, 2200); }
+function ping(url){ var img = new Image(); img.src = url + (url.indexOf("?") > -1 ? "&" : "?") + "_t=" + Date.now(); }
+function tap(el, fn){ el.addEventListener("click", fn, false); }
+
+var cfg = (function(){
+  var saved = load("cfg", {}), out = {}, k;
+  for (k in DEFAULT_CFG) out[k] = DEFAULT_CFG[k];
+  for (k in saved) if (k !== "relays" && k !== "studioRelay" && k !== "studioStatusURL") out[k] = saved[k];
+  return out;
+})();
+
+/* ---------- Clock, date, reminders, night mode ---------- */
+var wakeUntil = 0;
+function isNight(h){
+  var s = cfg.nightStart, e = cfg.nightEnd;
+  return s > e ? (h >= s || h < e) : (h >= s && h < e);
+}
+function nextReminder(now){
+  var mins = now.getHours()*60 + now.getMinutes(), best = null, bestDiff = 99999;
+  for (var i = 0; i < cfg.reminders.length; i++){
+    var r = cfg.reminders[i], p = r.time.split(":"), m = (+p[0])*60 + (+p[1]);
+    var diff = m - mins;
+    if (diff >= 0 && diff < bestDiff){ best = r; bestDiff = diff; }
+  }
+  return best ? {r:best, diff:bestDiff} : null;
+}
+function tick(){
+  var d = new Date(), h = d.getHours(), m = d.getMinutes();
+  var h12 = h % 12 || 12;
+  $("time").innerHTML = h12 + ":" + pad(m);
+  $("ampm").innerHTML = h < 12 ? "AM" : "PM";
+  $("date").innerHTML = DAYS[d.getDay()] + ", " + d.getDate() + " " + MONTHS[d.getMonth()];
+
+  var nr = nextReminder(d), rem = $("remind");
+  if (nr){
+    var hh = Math.floor(nr.diff/60), mm = nr.diff % 60;
+    var left = nr.diff === 0 ? "now" : "in " + (hh ? hh + " h " : "") + (mm ? mm + " min" : "");
+    rem.innerHTML = "<b>" + esc(nr.r.time) + "</b> · " + esc(nr.r.text) + " · " + left;
+    rem.className = nr.diff <= 15 ? "soon" : "";
+  } else { rem.innerHTML = "No more reminders today"; rem.className = ""; }
+
+  var night = (isNight(h) || !studioOn()) && Date.now() > wakeUntil;
+  $("night").style.display = night ? "block" : "none";
+  if (night){
+    var nc = $("nclock");
+    nc.firstChild.nodeValue = h12 + ":" + pad(m);
+    nc.lastChild.innerHTML = DAYS[d.getDay()];
+  }
+}
+function shift(){
+  var x = Math.round(Math.random()*6 - 3), y = Math.round(Math.random()*6 - 3);
+  $("wrap").style.webkitTransform = $("wrap").style.transform = "translate(" + x + "px," + y + "px)";
+  var nc = $("nclock");
+  nc.style.left = (8 + Math.random()*42) + "%";
+  nc.style.top = (10 + Math.random()*40) + "%";
+}
+tap($("night"), function(){ wakeUntil = Date.now() + 60000; tick(); });
+
+/* ---------- Weather (Open-Meteo, no key) ---------- */
+function wDesc(c){
+  if (c === 0) return "Clear sky";
+  if (c <= 2) return "Partly cloudy";
+  if (c === 3) return "Cloudy";
+  if (c === 45 || c === 48) return "Fog";
+  if (c >= 51 && c <= 67) return "Rain";
+  if (c >= 80 && c <= 82) return "Showers";
+  if (c >= 95) return "Thunderstorm";
+  return "";
+}
+function weather(){
+  var x = new XMLHttpRequest();
+  x.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=" + cfg.lat + "&longitude=" + cfg.lon + "&current_weather=true&timezone=auto");
+  x.onload = function(){
+    try {
+      var w = JSON.parse(x.responseText).current_weather, d = wDesc(w.weathercode);
+      $("weather").innerHTML = '<span class="num" style="color:#fff">' + Math.round(w.temperature) + "°</span> " + (d ? d + " · " : "") + esc(cfg.city);
+    } catch(e){}
+  };
+  x.onerror = function(){ $("weather").innerHTML = "Weather: no internet"; };
+  x.send();
+}
+
+/* ---------- WLED light bar ---------- */
+var lb = load("lb", {on:false, bri:150, mode:0}), wledOnline = false;
+function wled(params){ ping("http://" + cfg.wledIP + "/win" + params); }
+function hsl2rgb(h){ var f = function(n){ var k = (n + h/30) % 12; return Math.round(255 * (0.5 - 0.5 * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); }; return [f(0), f(8), f(4)]; }
+function renderLeds(){
+  var m = cfg.lightModes[lb.mode] || cfg.lightModes[0], n = Math.max(8, Math.min(40, cfg.ledCount || 30)), html = "";
+  var a = lb.on ? (0.25 + 0.75 * lb.bri / 255) : 1;
+  for (var i = 0; i < n; i++){
+    var c = [m.r, m.g, m.b];
+    if (m.fx === 9) c = hsl2rgb(i / n * 330);
+    if (m.fx === 2) a = lb.on ? (0.25 + 0.75 * lb.bri / 255) * (0.55 + 0.45 * Math.sin(i / n * Math.PI)) : 1;
+    html += lb.on ? '<i style="background:rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a.toFixed(2) + ')"></i>' : "<i></i>";
+  }
+  $("leds").innerHTML = html;
+}
+function renderLB(){
+  var p = $("lbPower");
+  p.innerHTML = lb.on ? "On" : "Off";
+  p.className = "pill" + (lb.on ? " inv" : "");
+  $("lbBri").value = lb.bri;
+  $("briTxt").innerHTML = Math.round(lb.bri / 255 * 100) + "%";
+  $("wState").innerHTML = wledOnline ? "· connected" : "· offline";
+  var html = "";
+  for (var i = 0; i < cfg.lightModes.length; i++){
+    html += '<div data-m="' + i + '"' + (lb.on && lb.mode === i ? ' class="sel"' : "") + ">" + esc(cfg.lightModes[i].name) + "</div>";
+  }
+  $("modes").innerHTML = html;
+  renderLeds();
+}
+function applyMode(){
+  var m = cfg.lightModes[lb.mode] || cfg.lightModes[0];
+  wled("&T=1&A=" + lb.bri + "&R=" + m.r + "&G=" + m.g + "&B=" + m.b + "&FX=" + m.fx);
+}
+tap($("lbPower"), function(){
+  lb.on = !lb.on; save("lb", lb); renderLB();
+  if (lb.on) applyMode(); else wled("&T=0");
+});
+var briTimer;
+$("lbBri").addEventListener("input", function(){
+  lb.bri = +this.value; $("briTxt").innerHTML = Math.round(lb.bri / 255 * 100) + "%"; renderLeds();
+  clearTimeout(briTimer);
+  briTimer = setTimeout(function(){ save("lb", lb); if (lb.on) wled("&A=" + lb.bri); }, 150);
+}, false);
+tap($("modes"), function(e){
+  var m = e.target.getAttribute("data-m");
+  if (m === null) return;
+  lb.mode = +m; lb.on = true; save("lb", lb); renderLB(); applyMode();
+});
+function wledStatus(){
+  var x = new XMLHttpRequest();
+  x.timeout = 3000;
+  x.open("GET", "http://" + cfg.wledIP + "/json/state");
+  x.onload = function(){
+    wledOnline = true;
+    try { var s = JSON.parse(x.responseText); lb.on = !!s.on; lb.bri = s.bri; save("lb", lb); } catch(e){}
+    renderLB();
+  };
+  x.onerror = x.ontimeout = function(){ wledOnline = false; renderLB(); };
+  x.send();
+}
+
+/* ---------- Smart System (CC Dashboard · Firebase Realtime DB) ---------- */
+var SR = "/colorcast/studioRoom", MR = "/colorcast/machineRoom";
+var fb = { sr:null, mr:null, ok:false };
+var SR_TILES = [
+  {label:"Light 1", field:"light1"},
+  {label:"Light 2", field:"light2"},
+  {label:"Light 3", field:"light3"},
+  {label:"Fan", field:"fan", fan:true}
+];
+var MR_TILES = [
+  {label:"Light", field:"light"},
+  {label:"Fan", field:"fan", fan:true},
+  {label:"Door", kind:"door"}
+];
+function fbURL(path){ return cfg.firebaseURL.replace(/\/+$/, "") + path + ".json"; }
+function ctl(room){ var r = fb[room]; return (r && r.control) || {}; }
+/* Screen follows the Studio: Work mode or any studio light ON = dashboard; all off = night clock.
+   Until Firebase answers, assume ON so the screen never blanks by mistake. */
+function studioOn(){
+  if (!fb.sr) return true;
+  var c = ctl("sr");
+  return c.scene === "work" || c.light1 === true || c.light2 === true || c.light3 === true;
+}
+function fbFail(){ fb.ok = false; renderRelays(); }
+function fbGet(room, path){
+  var x = new XMLHttpRequest();
+  x.timeout = 6000;
+  x.open("GET", fbURL(path));
+  x.onload = function(){
+    if (x.status !== 200){ fbFail(); return; }
+    try {
+      var was = studioOn();
+      fb[room] = JSON.parse(x.responseText) || {};
+      fb.ok = true;
+      renderRelays();
+      if (was !== studioOn()) tick();
+    } catch(e){}
+  };
+  x.onerror = x.ontimeout = fbFail;
+  x.send();
+}
+function fbPoll(){ fbGet("sr", SR); fbGet("mr", MR); }
+function fbPatch(path, obj){
+  var x = new XMLHttpRequest();
+  x.open("PATCH", fbURL(path));
+  x.setRequestHeader("Content-Type", "application/json");
+  x.onload = function(){ if (x.status !== 200) toast("Firebase rejected the change (" + x.status + ")"); setTimeout(fbPoll, 300); };
+  x.onerror = function(){ toast("Can't reach Firebase"); };
+  x.send(JSON.stringify(obj));
+}
+function temp(room){ var s = fb[room] && fb[room].sensors; return (s && s.temperature != null) ? Number(s.temperature).toFixed(1) + "°" : ""; }
+function tileHTML(t, room, i, stack){
+  var c = ctl(room), cls = "tile flex between center", name = t.label, state;
+  if (t.kind === "door"){
+    var open = ((fb.mr && fb.mr.status) || {}).doorSensor === true;
+    cls += " ro" + (open ? " alert" : "");
+    state = open ? "Open" : "Closed";
+  } else {
+    var on = c[t.field] === true;
+    if (on) cls += " on";
+    state = (t.fan && c.fanAutoMode === true) ? (on ? "Auto · On" : "Auto") : (on ? "On" : "Off");
+  }
+  if (!fb[room]) state = "–";
+  var inner = stack ? '<div class="colf"><span class="n">' + name + '</span><span class="s">' + state + "</span></div>"
+                    : '<span class="n">' + name + '</span><span class="s">' + state + "</span>";
+  return '<div class="' + cls + '" data-room="' + room + '" data-i="' + i + '" role="button">' + inner + "</div>";
+}
+function renderRelays(){
+  var h = "", i;
+  for (i = 0; i < SR_TILES.length; i++) h += tileHTML(SR_TILES[i], "sr", i, false);
+  $("srTiles").innerHTML = h;
+  h = "";
+  for (i = 0; i < MR_TILES.length; i++) h += tileHTML(MR_TILES[i], "mr", i, true);
+  $("mrTiles").innerHTML = h;
+
+  var work = ctl("sr").scene === "work", wb = $("workBtn");
+  wb.innerHTML = work ? "Shut down" : "Start work mode";
+  $("srMode").innerHTML = fb.sr ? (work ? "· On" : "· Off") : "";
+  wb.className = work ? "pill stop" : "pill inv";
+  $("fbState").className = "live num" + (fb.ok ? " ok" : "");
+  var hum = fb.sr && fb.sr.sensors && fb.sr.sensors.humidity;
+  $("srTemp").innerHTML = fb.ok ? (temp("sr") || "live") : "offline";
+  $("mrTemp").innerHTML = temp("mr");
+}
+function setLocal(room, obj){
+  fb[room] = fb[room] || {};
+  fb[room].control = fb[room].control || {};
+  for (var k in obj) fb[room].control[k] = obj[k];
+}
+tap($("workBtn"), function(){
+  if (!fb.ok){ toast("Not connected to Firebase"); return; }
+  var work = ctl("sr").scene !== "work";
+  var up = {scene: work ? "work" : "shutdown", light1: work, light2: work, light3: work};
+  if (!work) up.fan = false;
+  setLocal("sr", up); renderRelays(); fbPatch(SR + "/control", up);
+  toast(work ? "Work mode on" : "Studio shutdown");
+  tick();
+});
+function onTile(e){
+  var el = e.target;
+  while (el && !el.getAttribute("data-room")) el = el.parentNode === document ? null : el.parentNode;
+  if (!el) return;
+  var room = el.getAttribute("data-room"), t = (room === "sr" ? SR_TILES : MR_TILES)[+el.getAttribute("data-i")];
+  if (t.kind === "door") return;
+  if (!fb.ok){ toast("Not connected to Firebase"); return; }
+  if (t.fan && ctl(room).fanAutoMode === true){ toast("Fan is in Auto mode · switch to Manual in CC Dashboard"); return; }
+  var body = {};
+  body[t.field] = !(ctl(room)[t.field] === true);
+  setLocal(room, body); renderRelays();
+  fbPatch((room === "sr" ? SR : MR) + "/control", body);
+  toast((room === "sr" ? "Studio " : "Machine room ") + t.label.toLowerCase() + (body[t.field] ? " on" : " off"));
+  tick();
+}
+tap($("srTiles"), onTile);
+tap($("mrTiles"), onTile);
+
+/* ---------- Settings ---------- */
+tap($("gear"), function(){ $("cfg").value = JSON.stringify(cfg, null, 2); $("settings").style.display = "block"; });
+tap($("cfgCancel"), function(){ $("settings").style.display = "none"; });
+tap($("cfgReset"), function(){ $("cfg").value = JSON.stringify(DEFAULT_CFG, null, 2); });
+tap($("cfgSave"), function(){
+  try {
+    var c = JSON.parse($("cfg").value);
+    if (!c.firebaseURL || !c.lightModes || !c.reminders) throw 0;
+    cfg = c; save("cfg", cfg);
+    $("settings").style.display = "none";
+    renderLB(); fbPoll(); weather(); wledStatus(); tick();
+    toast("Settings saved");
+  } catch(e){ toast("Invalid JSON · check it and save again"); }
+});
+
+/* ---------- Start ---------- */
+renderLB(); renderRelays();
+tick(); shift(); weather(); wledStatus(); fbPoll();
+setInterval(tick, 1000);
+setInterval(fbPoll, 3000);
+setInterval(shift, 60000);
+setInterval(weather, 30 * 60000);
+setInterval(wledStatus, 30000);
+})();
+</script>
+</body>
+</html>
