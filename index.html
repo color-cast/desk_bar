@@ -4,485 +4,633 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0e0d0c">
+<meta name="theme-color" content="#06080b">
 <title>Color Cast Desk</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  Color Cast Desk - standalone desk panel for the ZenFone (no PC needed).
+  Look and widget ideas taken from PhoneBox (github.com/ersinkoc/phonebox, MIT): cards with coloured titles,
+  12 x 6 grid pages with swipe + dots, Home Assistant style tiles, inbox, toasts, night clock, page rules.
+  Data: Firebase Realtime DB (same paths as CC Dashboard), desk buddy ESP32 (WLED-style API), Open-Meteo.
+  Built for 640 x 360 (phone in landscape); scales to any screen. Needs WebView 80+ (ZenFone has 95).
+-->
 <style>
-/* Style: true-black flat, warm near-black ground (a home, not a monitor).
-   Elevation by lightness only: ground #0e0d0c -> card #181716 -> control #24221f. No borders, no shadows at rest.
-   One data hue: Color Cast lime #a8e036 (same as CC Dashboard), only on live/ON data. Primary control = white pill.
-   The stage is a fixed 64 x 36 rem landscape canvas (1rem = 1/36 of the screen height), letterboxed on any screen.
-   Grid at 640x360: 16 | 372 | 12 | 224 | 16 = 640.  Height: 16 | 328 | 16 = 360. */
-html{font-size:2.7778vh;}
-@media (min-aspect-ratio:16/9){ html{font-size:2.7778vh;} }
-@media (max-aspect-ratio:16/9){ html{font-size:1.5625vw;} }
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-html,body{height:100%;background:#0e0d0c;}
-body{color:#ffffff;font-family:"Inter",Roboto,system-ui,sans-serif;font-size:1.4rem;line-height:1.35;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-font-smoothing:antialiased;}
-.num{font-variant-numeric:tabular-nums;-webkit-font-feature-settings:"tnum";font-feature-settings:"tnum";}
-#stage{position:absolute;left:50%;top:50%;width:64rem;height:36rem;margin:-18rem 0 0 -32rem;}
-#wrap{position:absolute;left:1.6rem;top:1.6rem;right:1.6rem;bottom:1.6rem;-webkit-transition:-webkit-transform 2s;transition:transform 2s;}
-.flex{display:-webkit-flex;display:flex;}
-.colf{display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;}
-.grow{-webkit-flex:1;flex:1;min-width:0;min-height:0;}
-.between{-webkit-justify-content:space-between;justify-content:space-between;}
-.center{-webkit-align-items:center;align-items:center;}
-#left{position:absolute;left:0;top:0;width:37.2rem;bottom:0;}
-#right{position:absolute;right:0;top:0;width:22.4rem;bottom:0;}
+:root{
+  --bg:#06080b; --card:rgba(255,255,255,.045); --card-hi:rgba(255,255,255,.075); --line:rgba(255,255,255,.08);
+  --text:#eef2f6; --muted:#8a94a3; --dim:#5b6472; --ok:#22c55e; --err:#ef4444; --warn:#f59e0b;
+  --lime:#a8e036; --ambient:45,212,191;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:Roboto,"Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+button{font:inherit;color:inherit;background:none;border:0}
+#stage{position:absolute;left:0;top:0;width:640px;height:360px;transform-origin:0 0;overflow:hidden}
+#stage::before{content:"";position:absolute;inset:0;pointer-events:none;transition:background 1.2s ease;
+  background:radial-gradient(60% 80% at 78% 30%,rgba(var(--ambient),.16),transparent 70%),radial-gradient(50% 60% at 10% 100%,rgba(var(--ambient),.06),transparent 70%)}
+#pager{position:relative;display:flex;width:640px;height:360px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior:contain;transition:transform 2s}
+#pager::-webkit-scrollbar{display:none}
+.page{flex:0 0 640px;height:360px;scroll-snap-align:start;scroll-snap-stop:always;padding:10px 14px 17px}
+.grid{height:100%;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:repeat(6,minmax(0,1fr));gap:8px}
+.w{position:relative;min-width:0;min-height:0;overflow:hidden}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:9px 12px;display:flex;flex-direction:column}
+.w-title{display:flex;align-items:baseline;gap:8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--c,var(--muted));white-space:nowrap;overflow:hidden;flex:none}
+.w-sub{margin-left:auto;font-size:10.5px;letter-spacing:0;text-transform:none;font-weight:400;color:var(--dim);overflow:hidden;text-overflow:ellipsis}
+.dot{display:inline-block;width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--dim);transition:background .3s}
+.dot.on{background:var(--ok);box-shadow:0 0 8px rgba(34,197,94,.7)}
+.dot.off{background:var(--err)}
 
-.card{background:#181716;border-radius:2rem;padding:1.4rem 1.6rem;}
-.h{font-size:1.4rem;font-weight:600;color:#ffffff;}
-.meta{font-size:1.2rem;color:#949494;}
-.muted{color:#b4b4b4;}
+/* clock */
+.w-clock{display:flex;flex-direction:column;justify-content:center;padding-left:2px}
+.status{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px;letter-spacing:.02em;white-space:nowrap;overflow:hidden}
+.status .sep{color:var(--dim)}
+.status .bad{color:#fca5a5;font-weight:600}
+.clock{font-weight:200;font-size:100px;line-height:.95;letter-spacing:-.04em;margin-left:-.03em;display:flex;align-items:flex-start;margin-top:4px}
+.clock .colon{opacity:.55;margin:0 .01em;transition:opacity .2s}
+.clock .colon.dim{opacity:.2}
+.clock .ap{font-size:.2em;font-weight:400;color:var(--muted);letter-spacing:0;align-self:flex-end;margin:0 0 .35em .3em}
+.date{font-size:17px;color:var(--muted);margin-top:6px;letter-spacing:.01em}
+.gear{margin-left:auto;color:var(--dim);font-size:13px;padding:0 2px}
 
-/* clock block */
-#brand{font-size:1.2rem;color:#949494;}
-#brand b{font-weight:600;color:#b4b4b4;}
-.mark{display:inline-block;width:1.4rem;height:1.4rem;margin-right:0.7rem;vertical-align:-0.25rem;}
-#gear{color:#949494;padding:0.6rem 0 0.6rem 1.2rem;cursor:pointer;line-height:0;}
-#gear svg{width:1.6rem;height:1.6rem;}
-#gear:active{color:#ffffff;}
-#clock{margin-top:0.8rem;}
-#time{font-size:9.6rem;font-weight:500;line-height:0.92;letter-spacing:-0.35rem;}
-#ampm{font-size:1.8rem;font-weight:500;color:#949494;margin-left:1rem;padding-bottom:1rem;}
-#sec{display:block;font-size:1.4rem;color:#5c5852;margin-top:0.2rem;}
-#date{font-size:1.6rem;font-weight:500;margin-top:1rem;}
-#weather{font-size:1.4rem;color:#b4b4b4;margin-top:0.4rem;}
-#remind{display:inline-block;font-size:1.25rem;color:#b4b4b4;background:#24221f;border-radius:999px;padding:0.45rem 1.2rem;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-#remind b{font-weight:600;color:#ffffff;}
-#remind.soon{background:#2b2414;color:#e5a93b;}
-#remind.soon b{color:#e5a93b;}
+/* weather */
+.wx-main{display:flex;align-items:center;gap:10px;margin-top:6px}
+.wx-ico{font-size:36px;line-height:1}
+.wx-t{font-size:44px;font-weight:300;letter-spacing:-.02em;line-height:1}
+.wx-d{font-size:13px;color:var(--text);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wx-s{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wx-hours{display:flex;gap:6px;margin-top:auto}
+.wx-h{flex:1;text-align:center;padding:5px 0 4px;border-radius:9px;background:rgba(255,255,255,.04);font-size:11px;color:var(--muted)}
+.wx-h b{display:block;font-size:14px;font-weight:500;color:var(--text);margin-top:1px}
 
-/* light bar card */
-#lbCard{position:absolute;left:0;right:0;bottom:0;height:13.6rem;padding:1.3rem 1.6rem;}
-#leds{margin:0.9rem 0 0.6rem;height:0.8rem;}
-#leds i{display:block;-webkit-flex:1;flex:1;height:0.8rem;margin-right:0.3rem;border-radius:999px;background:#24221f;}
-#leds i:last-child{margin-right:0;}
-.pill{display:inline-block;height:2.8rem;line-height:2.8rem;padding:0 1.4rem;border-radius:999px;background:#24221f;color:#b4b4b4;font-size:1.25rem;font-weight:500;text-align:center;cursor:pointer;white-space:nowrap;}
-.pill:active{background:#2e2b27;}
-.pill.inv{background:#ffffff;color:#000;}
-.pill.inv:active{background:#d9d9d9;}
-#lbPower{min-width:5.6rem;height:2.4rem;line-height:2.4rem;}
-#bri{height:2.6rem;}
-#bri svg{width:1.4rem;height:1.4rem;margin-right:1rem;}
-#briTxt{width:4.4rem;text-align:right;font-size:1.25rem;color:#b4b4b4;}
-input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:0.4rem;border-radius:999px;background:#24221f;outline:none;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:2.2rem;height:2.2rem;border-radius:50%;background:#ffffff;}
-#modes{margin-top:0.7rem;background:#24221f;border-radius:999px;padding:0.3rem;}
-#modes div{-webkit-flex:1;flex:1;height:2.4rem;line-height:2.4rem;border-radius:999px;text-align:center;font-size:1.2rem;font-weight:500;color:#b4b4b4;cursor:pointer;}
-#modes div.sel{background:#ffffff;color:#000;}
+/* tiles (Home Assistant style) */
+.ha-grid{flex:1;min-height:0;margin-top:7px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:6px}
+.ha-tile{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:6px 9px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid transparent;min-width:0;min-height:0;overflow:hidden;transition:background .2s,border-color .2s,transform .1s}
+.ha-tile.can:active{transform:scale(.97)}
+.ha-tile.on{background:rgba(250,204,21,.14);border-color:rgba(250,204,21,.35)}
+.ha-tile.alert{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.4)}
+.ha-tile.busy{opacity:.6}
+.ha-tile.gone{opacity:.45}
+.ha-tile.flash{border-color:rgba(245,158,11,.7)}
+.ha-ico{font-size:20px;line-height:1}
+.ha-name{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ha-state{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ha-tile.on .ha-state{color:#fde68a}
+.ha-tile.alert .ha-state{color:#fca5a5}
 
-/* rooms */
-#srCard{position:absolute;left:0;right:0;top:0;height:20.2rem;}
-#mrCard{position:absolute;left:0;right:0;bottom:0;height:11.4rem;}
-.live{font-size:1.2rem;color:#949494;white-space:nowrap;}
-#srCard .h,#srMode{white-space:nowrap;}
-.live i{display:inline-block;width:0.7rem;height:0.7rem;border-radius:50%;background:#5c5852;margin-right:0.5rem;vertical-align:0.05rem;}
-.live.ok i{background:#a8e036;}
-#workBtn{display:block;width:100%;margin-top:1rem;height:3.4rem;line-height:3.4rem;font-size:1.35rem;}
-#workBtn.stop{color:#ffffff;}
-.tiles{margin-top:0.8rem;-webkit-flex-wrap:wrap;flex-wrap:wrap;}
-.tile{width:48%;margin-right:4%;height:4.7rem;padding:0 1.1rem;border-radius:1.2rem;background:#24221f;cursor:pointer;}
-.tile:nth-child(2n){margin-right:0;}
-#srTiles .tile:nth-child(-n+2){margin-bottom:0.8rem;}
-.tile:active{background:#2e2b27;}
-.tile .n{font-size:1.25rem;font-weight:500;color:#b4b4b4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.tile .s{font-size:1.15rem;color:#5c5852;margin-left:0.6rem;white-space:nowrap;}
-.tile.on .n{color:#ffffff;}
-.tile.on .s{color:#a8e036;}
-.tile.ro{cursor:default;}
-.tile.ro:active{background:#24221f;}
-.tile.alert{background:#2b2414;}
-.tile.alert .n,.tile.alert .s{color:#e5a93b;}
-#mrTiles .tile{width:31%;margin-right:3.5%;padding:0 1rem;height:5.2rem;}
-#mrTiles .tile:nth-child(2n){margin-right:3.5%;}
-#mrTiles .tile:nth-child(3n){margin-right:0;}
-#mrTiles .tile .colf{width:100%;}
-#mrTiles .tile .s{margin-left:0;}
+/* buzzer banner */
+.alarm{display:none;margin-top:7px;padding:7px 10px;border-radius:12px;background:rgba(245,158,11,.16);border:1px solid rgba(245,158,11,.45);align-items:center;gap:10px;flex:none}
+.alarm.show{display:flex;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{background:rgba(245,158,11,.28)}}
+.alarm .t{flex:1;min-width:0}
+.alarm .t b{display:block;font-size:15px;color:#fcd34d;font-weight:600}
+.alarm .t span{font-size:12px;color:#fbbf24;opacity:.8}
+.ack{padding:9px 14px;border-radius:10px;background:var(--warn);color:#1a1206;font-weight:700;font-size:14px}
+.ack:active{transform:scale(.97)}
 
-/* overlays */
-#night{position:absolute;left:0;top:0;right:0;bottom:0;background:#000;display:none;cursor:pointer;}
-#nclock{position:absolute;font-size:8.6rem;font-weight:500;letter-spacing:-0.3rem;color:#4a3d28;-webkit-transition:left 3s,top 3s;transition:left 3s,top 3s;}
-#nclock span{display:block;font-size:1.6rem;letter-spacing:0;text-align:center;color:#352b1c;}
-#settings{position:absolute;left:0;top:0;right:0;bottom:0;background:#0e0d0c;display:none;padding:1.6rem;}
-#cfg{display:block;width:100%;height:28rem;margin-top:1.2rem;background:#181716;color:#b4b4b4;border:0;border-radius:1.6rem;font-family:ui-monospace,Menlo,monospace;font-size:1.15rem;line-height:1.5;padding:1.2rem 1.4rem;outline:none;-webkit-user-select:text;user-select:text;}
-#settings .pill{margin-left:0.6rem;}
-#toast{position:absolute;bottom:2.4rem;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);background:#ffffff;color:#000;font-size:1.3rem;font-weight:500;padding:0.8rem 1.6rem;border-radius:999px;display:none;white-space:nowrap;box-shadow:0 0.4rem 1.6rem rgba(0,0,0,0.5);}
+/* next up (countdown style) */
+.cd-l{font-size:13px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:auto}
+.cd-v{font-size:34px;font-weight:300;letter-spacing:-.02em;line-height:1.15;white-space:nowrap}
+.cd-s{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:auto}
+.w-next.soon .cd-v{color:#fcd34d}
+.w-next.none .cd-v{font-size:20px;color:var(--muted)}
+
+/* inbox */
+.inbox{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-top:6px;touch-action:pan-y;scrollbar-width:none}
+.inbox::-webkit-scrollbar{display:none}
+.ib-i{padding:5px 9px;border-radius:9px;background:rgba(255,255,255,.035);border-left:3px solid var(--lc,var(--dim));flex:none}
+.ib-h{display:flex;justify-content:space-between;gap:8px;font-size:12.5px}
+.ib-h b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib-h span{font-size:10.5px;color:var(--dim);white-space:nowrap}
+.ib-t{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty{flex:1;display:grid;place-items:center;color:var(--muted);font-size:12.5px;text-align:center}
+
+/* light bar */
+.leds{display:flex;gap:3px;height:18px;margin:12px 0 0;flex:none;position:relative;z-index:1}
+.spill{flex:1;min-height:0;margin:0 6px 10px;border-radius:0 0 40% 40%/0 0 30% 30%;opacity:.9;transition:background .4s}
+.leds i{flex:1;border-radius:999px;background:rgba(255,255,255,.07);transition:background .25s}
+.lb-row{display:flex;align-items:center;gap:10px;flex:none}
+.pill{height:34px;padding:0 18px;border-radius:999px;background:rgba(255,255,255,.07);font-size:14px;font-weight:600;color:var(--muted);white-space:nowrap}
+.pill.on{background:rgba(245,158,11,.2);color:#fde68a;box-shadow:inset 0 0 0 1px rgba(245,158,11,.45)}
+.pill:active{transform:scale(.97)}
+.bri{flex:1;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+.bri b{width:38px;text-align:right;color:var(--text);font-weight:500}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:6px;border-radius:999px;background:rgba(255,255,255,.1);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fde68a;border:3px solid #1a1206}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px;flex:none}
+.mode{height:42px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid transparent;font-size:13px;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:6px}
+.mode i{width:10px;height:10px;border-radius:50%}
+.mode.sel{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.12);color:#fde68a}
+.lb-hint{font-size:11.5px;color:var(--dim);margin-top:8px;flex:none}
+
+/* pushed-value style cards */
+.pv-card{justify-content:space-between}
+.pv{font-size:30px;font-weight:400;letter-spacing:-.02em;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--c2,var(--text))}
+.pv small{font-size:.45em;color:var(--muted);margin-left:3px}
+.ps{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track{height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:3px}
+.track i{display:block;height:100%;border-radius:inherit;background:var(--c2,var(--ok))}
+
+/* dots */
+#dots{position:absolute;left:50%;bottom:0;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:5px 12px;z-index:6;border-radius:999px;border:1px solid transparent}
+#dots i{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.22);transition:width .25s,background .25s}
+#dots i.on{width:16px;background:rgba(255,255,255,.7)}
+#dots.away{border-color:rgba(245,158,11,.4);background:rgba(20,16,8,.7)}
+#dots.away i.on{background:#f59e0b}
+
+/* toast */
+.toast{position:absolute;z-index:20;left:50%;bottom:24px;transform:translate(-50%,20px);display:flex;flex-direction:column;align-items:center;max-width:80%;padding:8px 16px;border-radius:12px;font-size:13px;background:rgba(20,24,30,.97);border:1px solid var(--line);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+.toast span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.toast b{font-size:13.5px}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast.err{border-color:rgba(239,68,68,.5);color:#fecaca}
+.toast.ok{border-color:rgba(34,197,94,.5);color:#bbf7d0}
+.toast.warn{border-color:rgba(245,158,11,.5);color:#fde68a}
+
+/* night clock */
+#night{position:absolute;inset:0;background:#000;z-index:10;display:none}
+body.night #night{display:block}
+#nclock{position:absolute;text-align:center;transition:left 3s,top 3s}
+#nclock .t{font-size:96px;font-weight:200;letter-spacing:-.04em;line-height:1;color:#7a6440}
+#nclock .d{font-size:15px;color:#4a3d28;margin-top:6px}
+#nclock .e{font-size:13px;color:#5c4a2e;margin-top:4px}
+
+/* settings */
+#settings{position:absolute;inset:0;z-index:30;background:var(--bg);padding:12px 14px;display:none;flex-direction:column}
+#settings.on{display:flex}
+#settings .top{display:flex;align-items:center;gap:8px}
+#settings .top b{font-size:15px;margin-right:auto}
+#cfg{flex:1;margin-top:10px;background:var(--card);color:var(--muted);border:1px solid var(--line);border-radius:12px;font:11.5px/1.5 "Roboto Mono",monospace;padding:10px 12px;outline:none;-webkit-user-select:text;user-select:text;resize:none}
+.btn{height:32px;padding:0 14px;border-radius:9px;background:rgba(255,255,255,.07);font-size:13px;font-weight:600;color:var(--muted)}
+.btn.pri{background:var(--lime);color:#11160a}
 </style>
 </head>
 <body>
 <div id="stage">
-<div id="wrap">
+  <div id="pager">
 
-  <div id="left">
-    <div class="flex between center">
-      <div id="brand"><svg class="mark" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="none" stroke="#a8e036" stroke-width="2"/><circle cx="7" cy="7" r="2.2" fill="#a8e036"/></svg><b>Color Cast</b> · Desk</div>
-      <div class="flex center" style="min-width:0;"><div id="remind">No more reminders today</div><div id="gear" role="button" aria-label="Settings"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><circle cx="8" cy="13" r="1.4" fill="currentColor"/></svg></div></div>
-    </div>
-    <div id="clock">
-      <div class="flex" style="-webkit-align-items:flex-end;align-items:flex-end;"><div id="time" class="num">--:--</div><div id="ampm">AM</div></div>
-      <div id="date">&nbsp;</div>
-      <div id="weather">Loading weather</div>
-    </div>
+    <!-- ===== Page 1: Home ===== -->
+    <section class="page" data-name="Home"><div class="grid">
+      <div class="w w-clock" style="grid-area:1/1/4/8" id="clockW">
+        <div class="status" id="status"></div>
+        <div class="clock" id="clock"><span id="hh">--</span><span class="colon" id="colon">:</span><span id="mm">--</span><span class="ap" id="ap"></span></div>
+        <div class="date" id="date"></div>
+      </div>
+      <div class="w card" style="grid-area:1/8/4/13;--c:#38bdf8">
+        <div class="w-title">Weather<span class="w-sub" id="wxCity"></span></div>
+        <div class="wx-main"><div class="wx-ico" id="wxIco">·</div><div style="min-width:0"><div class="wx-t" id="wxT">--°</div></div></div>
+        <div class="wx-d" id="wxD">Loading weather</div>
+        <div class="wx-s" id="wxS"></div>
+        <div class="wx-hours" id="wxHours"></div>
+      </div>
+      <div class="w card" style="grid-area:4/1/7/7;--c:var(--lime)">
+        <div class="w-title">Studio<span class="w-sub" id="quickSub"></span></div>
+        <div class="ha-grid" id="quickTiles"></div>
+      </div>
+      <div class="w card w-next" style="grid-area:4/7/7/13;--c:#60a5fa" id="nextW">
+        <div class="w-title">Next up<span class="w-sub" id="nextSub"></span></div>
+        <div class="cd-l" id="nextL"></div>
+        <div class="cd-v" id="nextV"></div>
+        <div class="cd-s" id="nextS"></div>
+      </div>
+    </div></section>
 
-    <div id="lbCard" class="card colf">
-      <div class="flex between center">
-        <div><span class="h">Monitor light bar</span> <span class="meta" id="wState">· offline</span></div>
-        <div class="pill" id="lbPower" role="button">Off</div>
+    <!-- ===== Page 2: Smart System ===== -->
+    <section class="page" data-name="Studio"><div class="grid">
+      <div class="w card" style="grid-area:1/1/7/9;--c:var(--lime)">
+        <div class="w-title">Smart System<span class="w-sub"><span class="dot" id="fbDot"></span> <span id="fbSub">connecting…</span></span></div>
+        <div class="alarm" id="alarm"><div class="t"><b id="alarmT">Buzzer</b><span>Studio Room buzzer is ringing</span></div><button class="ack" id="ackBtn">Acknowledge</button></div>
+        <div class="ha-grid" id="sysTiles"></div>
       </div>
-      <div id="leds" class="flex"></div>
-      <div id="bri" class="flex center">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="#949494" stroke-width="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M3 13l1.4-1.4M11.6 4.4L13 3" stroke="#949494" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <input type="range" id="lbBri" min="1" max="255" value="150" class="grow" aria-label="Brightness">
-        <span id="briTxt" class="num">59%</span>
+      <div class="w card" style="grid-area:1/9/7/13;--c:#c084fc">
+        <div class="w-title">Activity<span class="w-sub" id="ibCount"></span></div>
+        <div class="inbox" id="inbox"></div>
       </div>
-      <div id="modes" class="flex"></div>
-    </div>
+    </div></section>
+
+    <!-- ===== Page 3: Light bar & rooms ===== -->
+    <section class="page" data-name="Light"><div class="grid">
+      <div class="w card" style="grid-area:1/1/7/8;--c:#f59e0b">
+        <div class="w-title">Monitor light bar<span class="w-sub"><span class="dot" id="lbDot"></span> <span id="lbSub">offline</span></span></div>
+        <div class="leds" id="leds"></div><div class="spill" id="spill"></div>
+        <div class="lb-row">
+          <button class="pill" id="lbPower">Off</button>
+          <div class="bri">☀<input type="range" id="lbBri" min="1" max="255" value="150" aria-label="Brightness"><b id="briTxt">59%</b></div>
+        </div>
+        <div class="modes" id="modes"></div>
+        <div class="lb-hint">Knob on the desk buddy: turn = brightness · press = on/off · hold = next mode</div>
+      </div>
+      <div class="w card pv-card" style="grid-area:1/8/3/13;--c:#2dd4bf">
+        <div class="w-title">Studio</div>
+        <div class="pv" id="pvS">--<small>°C</small></div>
+        <div class="ps" id="psS"></div>
+      </div>
+      <div class="w card pv-card" style="grid-area:3/8/5/13;--c:#a78bfa">
+        <div class="w-title">Machine room</div>
+        <div class="pv" id="pvM">--<small>°C</small></div>
+        <div class="ps" id="psM"></div>
+      </div>
+      <div class="w card pv-card" style="grid-area:5/8/7/13;--c:#4ade80" id="batW">
+        <div class="w-title">Phone battery</div>
+        <div class="pv" id="pvB">--</div>
+        <div><div class="ps" id="psB">Battery info not available</div><div class="track"><i id="batBar" style="width:0"></i></div></div>
+      </div>
+    </div></section>
+
   </div>
-
-  <div id="right">
-    <div id="srCard" class="card colf">
-      <div class="flex between center">
-        <span><span class="h">Studio</span> <span class="meta" id="srMode"></span></span>
-        <span class="live" id="fbState"><i></i><span id="srTemp">offline</span></span>
-      </div>
-      <div class="pill inv" id="workBtn" role="button">Start work mode</div>
-      <div class="tiles flex" id="srTiles"></div>
-    </div>
-    <div id="mrCard" class="card colf">
-      <div class="flex between center">
-        <span class="h">Machine room</span>
-        <span class="live num" id="mrTemp"></span>
-      </div>
-      <div class="tiles flex" id="mrTiles"></div>
-    </div>
+  <div id="dots"></div>
+  <div class="toast" id="toast"><b id="toastT"></b><span id="toastS"></span></div>
+  <div id="night"><div id="nclock"><div class="t" id="nT">--:--</div><div class="d" id="nD"></div><div class="e" id="nE"></div></div></div>
+  <div id="settings">
+    <div class="top"><b>Settings</b><button class="btn" id="cfgReset">Default</button><button class="btn" id="cfgCancel">Cancel</button><button class="btn pri" id="cfgSave">Save</button></div>
+    <textarea id="cfg" spellcheck="false" aria-label="Settings JSON"></textarea>
   </div>
-
-</div>
-
-<div id="night"><div id="nclock" class="num">--:--<span></span></div></div>
-
-<div id="settings">
-  <div class="flex between center">
-    <span class="h">Settings</span>
-    <span><span class="pill" id="cfgReset">Default</span><span class="pill" id="cfgCancel">Cancel</span><span class="pill inv" id="cfgSave">Save</span></span>
-  </div>
-  <textarea id="cfg" spellcheck="false" aria-label="Settings JSON"></textarea>
-</div>
-<div id="toast"></div>
 </div>
 
 <script>
-(function(){
+(function () {
+'use strict';
+/* =================== settings =================== */
 var DEFAULT_CFG = {
-  wledIP: "192.168.1.50",
-  city: "Kolhapur", lat: 16.705, lon: 74.2433,
+  firebaseURL: 'https://colorcast-iot-default-rtdb.asia-southeast1.firebasedatabase.app',
+  deskBuddyIP: '192.168.1.50',
+  city: 'Kolhapur', lat: 16.705, lon: 74.2433,
   nightStart: 22, nightEnd: 6,
-  firebaseURL: "https://colorcast-iot-default-rtdb.asia-southeast1.firebasedatabase.app",
+  homeIdleSec: 120,
   ledCount: 30,
   lightModes: [
-    {name:"Warm", r:255, g:150, b:60, fx:0},
-    {name:"Cool", r:210, g:230, b:255, fx:0},
-    {name:"Rainbow", r:255, g:0, b:0, fx:9},
-    {name:"Breathe", r:120, g:80, b:255, fx:2}
+    { name: 'Warm', r: 255, g: 150, b: 60, fx: 0 },
+    { name: 'Cool', r: 210, g: 230, b: 255, fx: 0 },
+    { name: 'Rainbow', r: 255, g: 0, b: 0, fx: 9 },
+    { name: 'Breathe', r: 120, g: 80, b: 255, fx: 2 }
   ],
   reminders: [
-    {time:"09:00", text:"Open studio"},
-    {time:"17:30", text:"Pickup"}
+    { time: '09:00', text: 'Open studio' },
+    { time: '17:30', text: 'Pickup' }
   ]
 };
+var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var BUZZ = { reminder: 'Reminder', maintenance: 'Maintenance', billDue: 'Bill due', powerOff: 'Power off' };
 
-var DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+function $(id) { return document.getElementById(id); }
+function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+function tap(el, fn) { el.addEventListener('click', fn, false); }
+function vibrate(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} }
 
-function $(id){ return document.getElementById(id); }
-function load(k, d){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } }
-function save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
-function pad(n){ return n < 10 ? "0" + n : "" + n; }
-function esc(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
-function toast(msg){ var t = $("toast"); t.innerHTML = esc(msg); t.style.display = "block"; clearTimeout(toast.h); toast.h = setTimeout(function(){ t.style.display = "none"; }, 2200); }
-function ping(url){ var img = new Image(); img.src = url + (url.indexOf("?") > -1 ? "&" : "?") + "_t=" + Date.now(); }
-function tap(el, fn){ el.addEventListener("click", fn, false); }
+var cfg = (function () { var s = load('ccd-cfg', {}), o = {}, k; for (k in DEFAULT_CFG) o[k] = DEFAULT_CFG[k]; for (k in s) o[k] = s[k]; return o; })();
 
-var cfg = (function(){
-  var saved = load("cfg", {}), out = {}, k;
-  for (k in DEFAULT_CFG) out[k] = DEFAULT_CFG[k];
-  for (k in saved) if (k !== "relays" && k !== "studioRelay" && k !== "studioStatusURL") out[k] = saved[k];
-  return out;
-})();
+/* =================== stage scaling =================== */
+function fit() {
+  var s = Math.min(innerWidth / 640, innerHeight / 360), st = $('stage');
+  st.style.transform = 'scale(' + s + ')';
+  st.style.left = Math.round((innerWidth - 640 * s) / 2) + 'px';
+  st.style.top = Math.round((innerHeight - 360 * s) / 2) + 'px';
+}
+addEventListener('resize', fit); fit();
 
-/* ---------- Clock, date, reminders, night mode ---------- */
+/* =================== toast + activity inbox =================== */
+var toastTimer;
+function toast(title, sub, level) {
+  var t = $('toast');
+  $('toastT').textContent = title; $('toastS').textContent = sub || ''; $('toastS').style.display = sub ? '' : 'none';
+  t.className = 'toast on ' + (level || '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.className = 'toast ' + (level || ''); }, 2600);
+}
+var LC = { ok: '#22c55e', warn: '#f59e0b', err: '#ef4444', info: '#60a5fa' };
+var inbox = load('ccd-inbox', []);
+function logEvent(title, text, level) {
+  inbox.unshift({ t: Date.now(), title: title, text: text || '', level: level || 'info' });
+  if (inbox.length > 40) inbox.length = 40;
+  save('ccd-inbox', inbox); renderInbox();
+}
+function ago(ts) {
+  var s = Math.round((Date.now() - ts) / 1000);
+  if (s < 60) return 'now'; if (s < 3600) return Math.floor(s / 60) + ' min';
+  var d = new Date(ts); return pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+function renderInbox() {
+  var box = $('inbox');
+  $('ibCount').textContent = inbox.length ? inbox.length + '' : '';
+  if (!inbox.length) { box.innerHTML = '<div class="empty">Buzzer, door and studio events show up here</div>'; return; }
+  box.innerHTML = inbox.map(function (e) {
+    return '<div class="ib-i" style="--lc:' + (LC[e.level] || LC.info) + '"><div class="ib-h"><b>' + esc(e.title) + '</b><span>' + ago(e.t) + '</span></div>' +
+      (e.text ? '<div class="ib-t">' + esc(e.text) + '</div>' : '') + '</div>';
+  }).join('');
+}
+
+/* =================== pages, dots, rules =================== */
+var pager = $('pager'), pages = pager.querySelectorAll('.page'), cur = 0, lastTouch = Date.now();
+function goPage(i, smooth) {
+  cur = i; pager.scrollTo({ left: i * 640, behavior: smooth === false ? 'auto' : 'smooth' }); renderDots();
+}
+function renderDots() {
+  var h = ''; for (var i = 0; i < pages.length; i++) h += '<i data-p="' + i + '" class="' + (i === cur ? 'on' : '') + '"></i>';
+  $('dots').innerHTML = h; $('dots').className = cur !== 0 ? 'away' : '';
+}
+tap($('dots'), function (e) { var p = e.target.getAttribute('data-p'); if (p !== null) goPage(+p); });
+pager.addEventListener('scroll', function () { var i = Math.round(pager.scrollLeft / 640); if (i !== cur) { cur = i; renderDots(); } }, { passive: true });
+['touchstart', 'mousedown'].forEach(function (ev) { document.addEventListener(ev, function () { lastTouch = Date.now(); }, { passive: true }); });
+renderDots();
+
+/* =================== clock, date, status =================== */
 var wakeUntil = 0;
-function isNight(h){
-  var s = cfg.nightStart, e = cfg.nightEnd;
-  return s > e ? (h >= s || h < e) : (h >= s && h < e);
+function isNightHour(h) { var s = cfg.nightStart, e = cfg.nightEnd; return s > e ? (h >= s || h < e) : (h >= s && h < e); }
+function nextReminder(now) {
+  var mins = now.getHours() * 60 + now.getMinutes(), best = null, diff = 1e9;
+  (cfg.reminders || []).forEach(function (r) { var p = r.time.split(':'), m = (+p[0]) * 60 + (+p[1]), d = m - mins; if (d >= 0 && d < diff) { best = r; diff = d; } });
+  return best ? { r: best, diff: diff } : null;
 }
-function nextReminder(now){
-  var mins = now.getHours()*60 + now.getMinutes(), best = null, bestDiff = 99999;
-  for (var i = 0; i < cfg.reminders.length; i++){
-    var r = cfg.reminders[i], p = r.time.split(":"), m = (+p[0])*60 + (+p[1]);
-    var diff = m - mins;
-    if (diff >= 0 && diff < bestDiff){ best = r; bestDiff = diff; }
-  }
-  return best ? {r:best, diff:bestDiff} : null;
-}
-function tick(){
-  var d = new Date(), h = d.getHours(), m = d.getMinutes();
-  var h12 = h % 12 || 12;
-  $("time").innerHTML = h12 + ":" + pad(m);
-  $("ampm").innerHTML = h < 12 ? "AM" : "PM";
-  $("date").innerHTML = DAYS[d.getDay()] + ", " + d.getDate() + " " + MONTHS[d.getMonth()];
+function inText(d) { var h = Math.floor(d / 60), m = d % 60; return d === 0 ? 'Now' : (h ? h + ' h ' : '') + (m ? m + ' min' : ''); }
 
-  var nr = nextReminder(d), rem = $("remind");
-  if (nr){
-    var hh = Math.floor(nr.diff/60), mm = nr.diff % 60;
-    var left = nr.diff === 0 ? "now" : "in " + (hh ? hh + " h " : "") + (mm ? mm + " min" : "");
-    rem.innerHTML = "<b>" + esc(nr.r.time) + "</b> · " + esc(nr.r.text) + " · " + left;
-    rem.className = nr.diff <= 15 ? "soon" : "";
-  } else { rem.innerHTML = "No more reminders today"; rem.className = ""; }
+function tick() {
+  var d = new Date(), h = d.getHours(), m = d.getMinutes(), h12 = h % 12 || 12;
+  $('hh').textContent = h12; $('mm').textContent = pad(m); $('ap').textContent = h < 12 ? 'AM' : 'PM';
+  $('colon').className = 'colon' + (d.getSeconds() % 2 ? ' dim' : '');
+  $('date').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()];
 
-  var night = (isNight(h) || !studioOn()) && Date.now() > wakeUntil;
-  $("night").style.display = night ? "block" : "none";
-  if (night){
-    var nc = $("nclock");
-    nc.firstChild.nodeValue = h12 + ":" + pad(m);
-    nc.lastChild.innerHTML = DAYS[d.getDay()];
-  }
-}
-function shift(){
-  var x = Math.round(Math.random()*6 - 3), y = Math.round(Math.random()*6 - 3);
-  $("wrap").style.webkitTransform = $("wrap").style.transform = "translate(" + x + "px," + y + "px)";
-  var nc = $("nclock");
-  nc.style.left = (8 + Math.random()*42) + "%";
-  nc.style.top = (10 + Math.random()*40) + "%";
-}
-tap($("night"), function(){ wakeUntil = Date.now() + 60000; tick(); });
+  var nr = nextReminder(d), w = $('nextW');
+  if (nr) {
+    $('nextL').textContent = nr.r.text; $('nextV').textContent = inText(nr.diff); $('nextS').textContent = nr.r.time + ' today';
+    w.className = 'w card w-next' + (nr.diff <= 15 ? ' soon' : '');
+    if (nr.diff === 0 && d.getSeconds() === 0) { toast('⏰ ' + nr.r.text, nr.r.time, 'warn'); vibrate([200, 100, 200]); logEvent('Reminder', nr.r.text, 'info'); }
+  } else { $('nextL').textContent = ''; $('nextV').textContent = 'No more reminders today'; $('nextS').textContent = ''; w.className = 'w card w-next none'; }
+  $('nextSub').textContent = (cfg.reminders || []).length + ' today';
 
-/* ---------- Weather (Open-Meteo, no key) ---------- */
-function wDesc(c){
-  if (c === 0) return "Clear sky";
-  if (c <= 2) return "Partly cloudy";
-  if (c === 3) return "Cloudy";
-  if (c === 45 || c === 48) return "Fog";
-  if (c >= 51 && c <= 67) return "Rain";
-  if (c >= 80 && c <= 82) return "Showers";
-  if (c >= 95) return "Thunderstorm";
-  return "";
+  // night: night hours or studio off, unless the buzzer rings or the screen was tapped
+  var night = (isNightHour(h) || !studioOn()) && !ringing() && Date.now() > wakeUntil;
+  document.body.classList.toggle('night', night);
+  if (night) { $('nT').textContent = h12 + ':' + pad(m); $('nD').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; $('nE').textContent = nr ? nr.r.time + ' · ' + nr.r.text : ''; }
+
+  // rule: back to Home after homeIdleSec without touch (not while the buzzer rings)
+  if (cur !== 0 && !ringing() && Date.now() - lastTouch > cfg.homeIdleSec * 1000) goPage(0);
+  renderStatus();
 }
-function weather(){
-  var x = new XMLHttpRequest();
-  x.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=" + cfg.lat + "&longitude=" + cfg.lon + "&current_weather=true&timezone=auto");
-  x.onload = function(){
+function renderStatus() {
+  var p = [];
+  p.push('<span class="dot ' + (fb.ok ? 'on' : (fb.tried ? 'off' : '')) + '"></span>' + (fb.ok ? 'Studio live' : '<span class="bad">Firebase offline</span>'));
+  p.push('<span class="dot ' + (wledOnline ? 'on' : '') + '"></span>Light bar');
+  if (bat) p.push((bat.charging ? '⚡' : '🔋') + Math.round(bat.level * 100) + '%');
+  $('status').innerHTML = p.join('<span class="sep">·</span>') + '<button class="gear" id="gear" aria-label="Settings">⚙</button>';
+  tap($('gear'), openSettings);
+}
+function shift() {
+  var x = Math.round(Math.random() * 4 - 2), y = Math.round(Math.random() * 4 - 2);
+  pager.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+  var n = $('nclock'); n.style.left = (40 + Math.random() * 300) + 'px'; n.style.top = (40 + Math.random() * 140) + 'px';
+}
+tap($('night'), function () { wakeUntil = Date.now() + 60000; tick(); });
+
+/* =================== weather (Open-Meteo) =================== */
+var WX = [[0, '☀️', 'Clear sky'], [1, '🌤️', 'Mostly clear'], [2, '⛅', 'Partly cloudy'], [3, '☁️', 'Cloudy'], [48, '🌫️', 'Fog'], [57, '🌦️', 'Drizzle'], [67, '🌧️', 'Rain'], [77, '🌨️', 'Snow'], [82, '🌦️', 'Showers'], [99, '⛈️', 'Thunderstorm']];
+function wx(code) { for (var i = 0; i < WX.length; i++) if (code <= WX[i][0]) return WX[i]; return WX[WX.length - 1]; }
+function weather(useHttp) {
+  // Android 5 does not trust Let's Encrypt over HTTPS: fall back to plain HTTP for the weather only
+  var url = (useHttp ? 'http' : 'https') + '://api.open-meteo.com/v1/forecast?latitude=' + cfg.lat + '&longitude=' + cfg.lon +
+    '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code&hourly=temperature_2m,weather_code' +
+    '&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=2';
+  var x = new XMLHttpRequest(); x.timeout = 10000; x.open('GET', url);
+  x.onload = function () {
     try {
-      var w = JSON.parse(x.responseText).current_weather, d = wDesc(w.weathercode);
-      $("weather").innerHTML = '<span class="num" style="color:#fff">' + Math.round(w.temperature) + "°</span> " + (d ? d + " · " : "") + esc(cfg.city);
-    } catch(e){}
+      var j = JSON.parse(x.responseText), c = j.current, w = wx(c.weather_code);
+      $('wxCity').textContent = cfg.city; $('wxIco').textContent = w[1]; $('wxT').textContent = Math.round(c.temperature_2m) + '°';
+      $('wxD').textContent = w[2];
+      $('wxS').textContent = 'Feels ' + Math.round(c.apparent_temperature) + '° · 💧' + c.relative_humidity_2m + '% · ↑' + Math.round(j.daily.temperature_2m_max[0]) + '° ↓' + Math.round(j.daily.temperature_2m_min[0]) + '°';
+      var now = Date.now(), times = j.hourly.time, h = '', n = 0;
+      for (var i = 0; i < times.length && n < 4; i++) {
+        var t = new Date(times[i]).getTime(); if (t <= now) continue;
+        if (n === 0 || (new Date(times[i]).getHours() % 3 === 0)) {
+          h += '<div class="wx-h">' + pad(new Date(times[i]).getHours()) + ':00<b>' + wx(j.hourly.weather_code[i])[1] + ' ' + Math.round(j.hourly.temperature_2m[i]) + '°</b></div>'; n++;
+        }
+      }
+      $('wxHours').innerHTML = h;
+    } catch (e) { if (!useHttp) weather(true); }
   };
-  x.onerror = function(){ $("weather").innerHTML = "Weather: no internet"; };
+  x.onerror = x.ontimeout = function () { if (!useHttp) weather(true); else { $('wxD').textContent = 'Weather unavailable'; $('wxS').textContent = 'No internet'; } };
   x.send();
 }
 
-/* ---------- WLED light bar ---------- */
-var lb = load("lb", {on:false, bri:150, mode:0}), wledOnline = false;
-function wled(params){ ping("http://" + cfg.wledIP + "/win" + params); }
-function hsl2rgb(h){ var f = function(n){ var k = (n + h/30) % 12; return Math.round(255 * (0.5 - 0.5 * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); }; return [f(0), f(8), f(4)]; }
-function renderLeds(){
-  var m = cfg.lightModes[lb.mode] || cfg.lightModes[0], n = Math.max(8, Math.min(40, cfg.ledCount || 30)), html = "";
-  var a = lb.on ? (0.25 + 0.75 * lb.bri / 255) : 1;
-  for (var i = 0; i < n; i++){
-    var c = [m.r, m.g, m.b];
-    if (m.fx === 9) c = hsl2rgb(i / n * 330);
-    if (m.fx === 2) a = lb.on ? (0.25 + 0.75 * lb.bri / 255) * (0.55 + 0.45 * Math.sin(i / n * Math.PI)) : 1;
-    html += lb.on ? '<i style="background:rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a.toFixed(2) + ')"></i>' : "<i></i>";
+/* =================== Firebase: Smart System =================== */
+var SR = '/colorcast/studioRoom', MR = '/colorcast/machineRoom';
+var fb = { sr: null, mr: null, ok: false, tried: false }, busy = {}, ackUntil = 0, prev = null;
+var TILES = [
+  { id: 'work', room: 'sr', ico: '💼', name: 'Work mode', short: 'Work', kind: 'scene' },
+  { id: 'l1', room: 'sr', ico: '💡', name: 'Light 1', field: 'light1' },
+  { id: 'l2', room: 'sr', ico: '💡', name: 'Light 2', field: 'light2' },
+  { id: 'l3', room: 'sr', ico: '💡', name: 'Light 3', field: 'light3' },
+  { id: 'sf', room: 'sr', ico: '🌀', name: 'Studio fan', field: 'fan', fan: true },
+  { id: 'ml', room: 'mr', ico: '💡', name: 'MR light', field: 'light' },
+  { id: 'mf', room: 'mr', ico: '🌀', name: 'MR fan', field: 'fan', fan: true },
+  { id: 'door', room: 'mr', ico: '🚪', name: 'MR door', kind: 'door' }
+];
+var QUICK = ['work', 'l1', 'l2', 'l3'];
+function fbUrl(p) { return cfg.firebaseURL.replace(/\/+$/, '') + p + '.json'; }
+function ctl(room) { return (fb[room] && fb[room].control) || {}; }
+function req(method, path, body, done) {
+  var x = new XMLHttpRequest(); x.timeout = 6000; x.open(method, fbUrl(path));
+  if (body) x.setRequestHeader('Content-Type', 'application/json');
+  x.onload = function () { done && done(x.status === 200 ? null : x.status, x.responseText); };
+  x.onerror = x.ontimeout = function () { done && done('net'); };
+  x.send(body ? JSON.stringify(body) : null);
+}
+function studioOn() { if (!fb.sr) return true; var c = ctl('sr'); return c.scene === 'work' || c.light1 === true || c.light2 === true || c.light3 === true; }
+function ringing() { var c = ctl('sr'); return c.buzzer === true && !!c.buzzerPattern && c.buzzerPattern !== 'none' && Date.now() > ackUntil; }
+function doorOpen() { return ((fb.mr && fb.mr.status) || {}).doorSensor === true; }
+
+function poll() {
+  var left = 2, fail = false;
+  function got(room) {
+    return function (err, txt) {
+      if (err) fail = true; else { try { fb[room] = JSON.parse(txt) || {}; } catch (e) { fail = true; } }
+      if (--left === 0) {
+        var wasOk = fb.ok; fb.ok = !fail; fb.tried = true;
+        if (wasOk && !fb.ok) logEvent('Firebase offline', 'Check the internet', 'err');
+        if (!wasOk && fb.ok && prev) logEvent('Firebase back online', '', 'ok');
+        if (fb.ok) watchChanges();
+        renderSystem(); tick();
+      }
+    };
   }
-  $("leds").innerHTML = html;
+  req('GET', SR, null, got('sr')); req('GET', MR, null, got('mr'));
 }
-function renderLB(){
-  var p = $("lbPower");
-  p.innerHTML = lb.on ? "On" : "Off";
-  p.className = "pill" + (lb.on ? " inv" : "");
-  $("lbBri").value = lb.bri;
-  $("briTxt").innerHTML = Math.round(lb.bri / 255 * 100) + "%";
-  $("wState").innerHTML = wledOnline ? "· connected" : "· offline";
-  var html = "";
-  for (var i = 0; i < cfg.lightModes.length; i++){
-    html += '<div data-m="' + i + '"' + (lb.on && lb.mode === i ? ' class="sel"' : "") + ">" + esc(cfg.lightModes[i].name) + "</div>";
+function watchChanges() {   // page rules + activity log, only on real changes
+  var now = { ring: ringing(), door: doorOpen(), studio: studioOn(), pat: ctl('sr').buzzerPattern };
+  if (prev) {
+    if (now.ring && !prev.ring) {
+      var name = BUZZ[now.pat] || 'Buzzer';
+      logEvent('🔔 Studio buzzer', name, 'warn'); toast('🔔 Studio buzzer', name + ' · tap Acknowledge', 'warn');
+      vibrate([300, 150, 300, 150, 300]); wakeUntil = Date.now() + 60000; goPage(1);
+    }
+    if (!now.ring && prev.ring && Date.now() > ackUntil) logEvent('Buzzer stopped', 'Acknowledged elsewhere', 'ok');
+    if (now.door !== prev.door) logEvent(now.door ? 'Machine room door opened' : 'Machine room door closed', '', now.door ? 'warn' : 'ok');
+    if (now.studio !== prev.studio) logEvent(now.studio ? 'Studio on' : 'Studio off', now.studio ? 'Work mode or a light switched on' : 'Going to night clock', now.studio ? 'ok' : 'info');
   }
-  $("modes").innerHTML = html;
-  renderLeds();
+  prev = now;
 }
-function applyMode(){
-  var m = cfg.lightModes[lb.mode] || cfg.lightModes[0];
-  wled("&T=1&A=" + lb.bri + "&R=" + m.r + "&G=" + m.g + "&B=" + m.b + "&FX=" + m.fx);
+function tileState(t) {
+  var c = ctl(t.room);
+  if (!fb[t.room]) return { on: false, txt: '–' };
+  if (t.kind === 'scene') return { on: c.scene === 'work', txt: c.scene === 'work' ? 'On' : 'Off' };
+  if (t.kind === 'door') { var o = doorOpen(); return { on: false, alert: o, txt: o ? 'Open' : 'Closed' }; }
+  var on = c[t.field] === true;
+  return { on: on, txt: (t.fan && c.fanAutoMode === true) ? (on ? 'Auto · On' : 'Auto') : (on ? 'On' : 'Off') };
 }
-tap($("lbPower"), function(){
-  lb.on = !lb.on; save("lb", lb); renderLB();
-  if (lb.on) applyMode(); else wled("&T=0");
+function tileHtml(t, prefix) {
+  return '<div class="ha-tile" id="' + prefix + t.id + '" data-id="' + t.id + '"><span class="ha-ico">' + t.ico + '</span><span class="ha-name">' + (prefix === 'q-' && t.short ? t.short : t.name) + '</span><span class="ha-state">–</span></div>';
+}
+function buildTiles() {
+  $('sysTiles').innerHTML = TILES.map(function (t) { return tileHtml(t, 's-'); }).join('');
+  $('quickTiles').innerHTML = TILES.filter(function (t) { return QUICK.indexOf(t.id) >= 0; }).map(function (t) { return tileHtml(t, 'q-'); }).join('');
+  [$('sysTiles'), $('quickTiles')].forEach(function (g) { tap(g, function (e) { var el = e.target.closest('.ha-tile'); if (el) onTile(el.getAttribute('data-id')); }); });
+}
+function temp(room) { var s = fb[room] && fb[room].sensors; return (s && s.temperature != null) ? Number(s.temperature).toFixed(1) : null; }
+function renderSystem() {
+  TILES.forEach(function (t) {
+    var s = tileState(t);
+    ['s-', 'q-'].forEach(function (p) {
+      var el = $(p + t.id); if (!el) return;
+      el.className = 'ha-tile' + (t.kind !== 'door' ? ' can' : '') + (s.on ? ' on' : '') + (s.alert ? ' alert' : '') + (busy[t.id] ? ' busy' : '') + (!fb[t.room] ? ' gone' : '');
+      el.lastChild.textContent = s.txt;
+    });
+  });
+  var ts = temp('sr'), tm = temp('mr'), parts = [];
+  if (ts) parts.push('Studio ' + ts + '°'); if (tm) parts.push('MR ' + tm + '°');
+  $('fbDot').className = 'dot ' + (fb.ok ? 'on' : (fb.tried ? 'off' : ''));
+  $('fbSub').textContent = fb.ok ? (parts.join(' · ') || 'Live') : (fb.tried ? 'Firebase offline' : 'connecting…');
+  $('quickSub').textContent = fb.ok ? (studioOn() ? 'On' : 'Off') + (ts ? ' · ' + ts + '°' : '') : '';
+  var r = ringing();
+  $('alarm').className = 'alarm' + (r ? ' show' : '');
+  if (r) $('alarmT').textContent = '🔔 ' + (BUZZ[ctl('sr').buzzerPattern] || 'Buzzer');
+  // room value cards
+  var hs = fb.sr && fb.sr.sensors && fb.sr.sensors.humidity, hm = fb.mr && fb.mr.sensors && fb.mr.sensors.humidity;
+  $('pvS').innerHTML = (ts || '--') + '<small>°C</small>'; $('psS').textContent = (hs != null ? 'Humidity ' + Math.round(hs) + '% · ' : '') + (studioOn() ? 'Studio on' : 'Studio off');
+  $('pvM').innerHTML = (tm || '--') + '<small>°C</small>'; $('psM').textContent = (hm != null ? 'Humidity ' + Math.round(hm) + '% · ' : '') + 'Door ' + (doorOpen() ? 'open' : 'closed');
+  $('psM').style.color = doorOpen() ? '#fca5a5' : '';
+  // ambient glow follows the state (PhoneBox ambient)
+  document.documentElement.style.setProperty('--ambient', r ? '245,158,11' : (!fb.ok ? '239,68,68' : (studioOn() ? '168,224,54' : '45,212,191')));
+}
+function patch(room, obj, after) {
+  fb[room] = fb[room] || {}; fb[room].control = fb[room].control || {};
+  for (var k in obj) fb[room].control[k] = obj[k];
+  renderSystem();
+  req('PATCH', (room === 'sr' ? SR : MR) + '/control', obj, function (err) {
+    if (err) toast('Change not saved', 'Firebase said ' + err, 'err');
+    if (after) after(err); setTimeout(poll, 300);
+  });
+}
+function onTile(id) {
+  var t = TILES.filter(function (x) { return x.id === id; })[0];
+  if (!t || t.kind === 'door' || busy[id]) return;
+  if (!fb.ok) { toast('Not connected', 'Firebase is offline', 'err'); return; }
+  var c = ctl(t.room), done = function () { busy[id] = false; renderSystem(); };
+  if (t.fan && c.fanAutoMode === true) {
+    ['s-', 'q-'].forEach(function (p) { var el = $(p + id); if (el) { el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 600); } });
+    toast('Fan is on Auto', 'Switch it to Manual in CC Dashboard', 'warn'); return;
+  }
+  busy[id] = true;
+  if (t.kind === 'scene') {
+    var work = c.scene !== 'work', up = { scene: work ? 'work' : 'shutdown', light1: work, light2: work, light3: work };
+    if (!work) up.fan = false;
+    patch('sr', up, done); toast(work ? 'Work mode on' : 'Studio shut down', '', work ? 'ok' : '');
+  } else {
+    var body = {}; body[t.field] = !(c[t.field] === true);
+    patch(t.room, body, done);
+  }
+}
+function acknowledge() {   // same as the studio button and CC Dashboard: pulse status/buzzerAck
+  ackUntil = Date.now() + 6000;
+  req('PATCH', SR + '/status', { buzzerAck: true });
+  patch('sr', { buzzer: false, buzzerPattern: 'none' });
+  setTimeout(function () { req('PATCH', SR + '/status', { buzzerAck: false }); }, 1500);
+  logEvent('Buzzer acknowledged', 'From the desk panel', 'ok'); toast('Buzzer acknowledged', '', 'ok');
+  if (prev) prev.ring = false;
+  setTimeout(function () { if (cur === 1) goPage(0); }, 8000);
+}
+tap($('ackBtn'), acknowledge);
+
+/* =================== desk buddy light bar (WLED-style API) =================== */
+var lb = load('ccd-lb', { on: false, bri: 150, mode: 0 }), wledOnline = false;
+function wled(params) { var i = new Image(); i.src = 'http://' + cfg.deskBuddyIP + '/win' + params + '&_t=' + Date.now(); }
+function hue(h) { var f = function (n) { var k = (n + h / 30) % 12; return Math.round(255 * (.5 - .5 * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); }; return [f(0), f(8), f(4)]; }
+function modeColor(m, i, n) { return m.fx === 9 ? hue(i / n * 330) : [m.r, m.g, m.b]; }
+function renderLB() {
+  var p = $('lbPower'); p.textContent = lb.on ? 'On' : 'Off'; p.className = 'pill' + (lb.on ? ' on' : '');
+  $('lbBri').value = lb.bri; $('briTxt').textContent = Math.round(lb.bri / 255 * 100) + '%';
+  $('lbDot').className = 'dot ' + (wledOnline ? 'on' : ''); $('lbSub').textContent = wledOnline ? 'connected' : 'offline';
+  var n = Math.max(8, Math.min(40, cfg.ledCount || 30)), m = cfg.lightModes[lb.mode] || cfg.lightModes[0], h = '';
+  for (var i = 0; i < n; i++) {
+    var c = modeColor(m, i, n), a = (.25 + .75 * lb.bri / 255) * (m.fx === 2 ? .55 + .45 * Math.sin(i / n * Math.PI) : 1);
+    h += lb.on ? '<i style="background:rgba(' + c.join(',') + ',' + a.toFixed(2) + ');box-shadow:0 0 6px rgba(' + c.join(',') + ',' + (a * .6).toFixed(2) + ')"></i>' : '<i></i>';
+  }
+  $('leds').innerHTML = h;
+  var mid = modeColor(m, n / 2, n), a0 = lb.on ? (.12 + .3 * lb.bri / 255) : 0;   // light spilling on the desk
+  $('spill').style.background = lb.on ? (m.fx === 9 ? 'linear-gradient(to bottom, rgba(255,255,255,' + (a0 * .5).toFixed(2) + '), transparent), linear-gradient(90deg, rgba(255,60,60,' + a0.toFixed(2) + '), rgba(255,220,60,' + a0.toFixed(2) + '), rgba(60,255,120,' + a0.toFixed(2) + '), rgba(60,160,255,' + a0.toFixed(2) + '), rgba(200,80,255,' + a0.toFixed(2) + '))' : 'linear-gradient(to bottom, rgba(' + mid.join(',') + ',' + a0.toFixed(2) + '), transparent 85%)') : 'transparent';
+  if (lb.on && m.fx === 9) $('spill').style.webkitMaskImage = $('spill').style.maskImage = 'linear-gradient(to bottom, #000, transparent 85%)'; else $('spill').style.webkitMaskImage = $('spill').style.maskImage = '';
+  $('modes').innerHTML = cfg.lightModes.map(function (md, i) {
+    var c = md.fx === 9 ? 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)' : 'rgb(' + md.r + ',' + md.g + ',' + md.b + ')';
+    return '<button class="mode' + (lb.on && lb.mode === i ? ' sel' : '') + '" data-m="' + i + '"><i style="background:' + c + '"></i>' + esc(md.name) + '</button>';
+  }).join('');
+}
+function applyMode() { var m = cfg.lightModes[lb.mode] || cfg.lightModes[0]; wled('?T=1&A=' + lb.bri + '&R=' + m.r + '&G=' + m.g + '&B=' + m.b + '&FX=' + m.fx); }
+tap($('lbPower'), function () { lb.on = !lb.on; save('ccd-lb', lb); renderLB(); if (lb.on) applyMode(); else wled('?T=0'); });
+var briT; $('lbBri').addEventListener('input', function () {
+  lb.bri = +this.value; renderLB(); clearTimeout(briT);
+  briT = setTimeout(function () { save('ccd-lb', lb); if (lb.on) wled('?A=' + lb.bri); }, 150);
 });
-var briTimer;
-$("lbBri").addEventListener("input", function(){
-  lb.bri = +this.value; $("briTxt").innerHTML = Math.round(lb.bri / 255 * 100) + "%"; renderLeds();
-  clearTimeout(briTimer);
-  briTimer = setTimeout(function(){ save("lb", lb); if (lb.on) wled("&A=" + lb.bri); }, 150);
-}, false);
-tap($("modes"), function(e){
-  var m = e.target.getAttribute("data-m");
-  if (m === null) return;
-  lb.mode = +m; lb.on = true; save("lb", lb); renderLB(); applyMode();
-});
-function wledStatus(){
-  var x = new XMLHttpRequest();
-  x.timeout = 3000;
-  x.open("GET", "http://" + cfg.wledIP + "/json/state");
-  x.onload = function(){
-    wledOnline = true;
-    try { var s = JSON.parse(x.responseText); lb.on = !!s.on; lb.bri = s.bri; save("lb", lb); } catch(e){}
+tap($('modes'), function (e) { var b = e.target.closest('.mode'); if (!b) return; lb.mode = +b.getAttribute('data-m'); lb.on = true; save('ccd-lb', lb); renderLB(); applyMode(); });
+function wledStatus() {
+  var x = new XMLHttpRequest(); x.timeout = 3000; x.open('GET', 'http://' + cfg.deskBuddyIP + '/json/state');
+  x.onload = function () {
+    var was = wledOnline; wledOnline = true;
+    try { var s = JSON.parse(x.responseText); lb.on = !!s.on; lb.bri = s.bri; if (typeof s.mode === 'number' && s.mode >= 0) lb.mode = s.mode; save('ccd-lb', lb); } catch (e) {}
+    if (!was) logEvent('Desk buddy connected', cfg.deskBuddyIP, 'ok');
     renderLB();
   };
-  x.onerror = x.ontimeout = function(){ wledOnline = false; renderLB(); };
+  x.onerror = x.ontimeout = function () { if (wledOnline) logEvent('Desk buddy offline', cfg.deskBuddyIP, 'err'); wledOnline = false; renderLB(); };
   x.send();
 }
 
-/* ---------- Smart System (CC Dashboard · Firebase Realtime DB) ---------- */
-var SR = "/colorcast/studioRoom", MR = "/colorcast/machineRoom";
-var fb = { sr:null, mr:null, ok:false };
-var SR_TILES = [
-  {label:"Light 1", field:"light1"},
-  {label:"Light 2", field:"light2"},
-  {label:"Light 3", field:"light3"},
-  {label:"Fan", field:"fan", fan:true}
-];
-var MR_TILES = [
-  {label:"Light", field:"light"},
-  {label:"Fan", field:"fan", fan:true},
-  {label:"Door", kind:"door"}
-];
-function fbURL(path){ return cfg.firebaseURL.replace(/\/+$/, "") + path + ".json"; }
-function ctl(room){ var r = fb[room]; return (r && r.control) || {}; }
-/* Screen follows the Studio: Work mode or any studio light ON = dashboard; all off = night clock.
-   Until Firebase answers, assume ON so the screen never blanks by mistake. */
-function studioOn(){
-  if (!fb.sr) return true;
-  var c = ctl("sr");
-  return c.scene === "work" || c.light1 === true || c.light2 === true || c.light3 === true;
+/* =================== phone battery (charging problems show here) =================== */
+var bat = null, batWarned = false;
+function renderBat() {
+  if (!bat) return;
+  var lv = Math.round(bat.level * 100), col = lv <= 20 ? '#ef4444' : (lv <= 40 ? '#f59e0b' : '#4ade80');
+  $('batW').style.setProperty('--c2', col);
+  $('pvB').innerHTML = lv + '<small>%</small>';
+  $('psB').textContent = bat.charging ? '⚡ Charging' + (bat.chargingTime && isFinite(bat.chargingTime) ? ' · full in ' + Math.round(bat.chargingTime / 60) + ' min' : '') : 'Not charging — check the charger / cable';
+  $('psB').style.color = bat.charging ? '' : '#fca5a5';
+  $('batBar').style.width = lv + '%';
+  if (!bat.charging && lv <= 20 && !batWarned) { batWarned = true; toast('Phone battery ' + lv + '%', 'Not charging — check the charger', 'err'); logEvent('Phone battery low', lv + '% and not charging', 'err'); }
+  if (bat.charging) batWarned = false;
+  renderStatus();
 }
-function fbFail(){ fb.ok = false; renderRelays(); }
-function fbGet(room, path){
-  var x = new XMLHttpRequest();
-  x.timeout = 6000;
-  x.open("GET", fbURL(path));
-  x.onload = function(){
-    if (x.status !== 200){ fbFail(); return; }
-    try {
-      var was = studioOn();
-      fb[room] = JSON.parse(x.responseText) || {};
-      fb.ok = true;
-      renderRelays();
-      if (was !== studioOn()) tick();
-    } catch(e){}
-  };
-  x.onerror = x.ontimeout = fbFail;
-  x.send();
-}
-function fbPoll(){ fbGet("sr", SR); fbGet("mr", MR); }
-function fbPatch(path, obj){
-  var x = new XMLHttpRequest();
-  x.open("PATCH", fbURL(path));
-  x.setRequestHeader("Content-Type", "application/json");
-  x.onload = function(){ if (x.status !== 200) toast("Firebase rejected the change (" + x.status + ")"); setTimeout(fbPoll, 300); };
-  x.onerror = function(){ toast("Can't reach Firebase"); };
-  x.send(JSON.stringify(obj));
-}
-function temp(room){ var s = fb[room] && fb[room].sensors; return (s && s.temperature != null) ? Number(s.temperature).toFixed(1) + "°" : ""; }
-function tileHTML(t, room, i, stack){
-  var c = ctl(room), cls = "tile flex between center", name = t.label, state;
-  if (t.kind === "door"){
-    var open = ((fb.mr && fb.mr.status) || {}).doorSensor === true;
-    cls += " ro" + (open ? " alert" : "");
-    state = open ? "Open" : "Closed";
-  } else {
-    var on = c[t.field] === true;
-    if (on) cls += " on";
-    state = (t.fan && c.fanAutoMode === true) ? (on ? "Auto · On" : "Auto") : (on ? "On" : "Off");
-  }
-  if (!fb[room]) state = "–";
-  var inner = stack ? '<div class="colf"><span class="n">' + name + '</span><span class="s">' + state + "</span></div>"
-                    : '<span class="n">' + name + '</span><span class="s">' + state + "</span>";
-  return '<div class="' + cls + '" data-room="' + room + '" data-i="' + i + '" role="button">' + inner + "</div>";
-}
-function renderRelays(){
-  var h = "", i;
-  for (i = 0; i < SR_TILES.length; i++) h += tileHTML(SR_TILES[i], "sr", i, false);
-  $("srTiles").innerHTML = h;
-  h = "";
-  for (i = 0; i < MR_TILES.length; i++) h += tileHTML(MR_TILES[i], "mr", i, true);
-  $("mrTiles").innerHTML = h;
+if (navigator.getBattery) navigator.getBattery().then(function (b) {
+  bat = b; renderBat();
+  ['levelchange', 'chargingchange', 'chargingtimechange'].forEach(function (ev) { b.addEventListener(ev, renderBat); });
+}).catch(function () {});
 
-  var work = ctl("sr").scene === "work", wb = $("workBtn");
-  wb.innerHTML = work ? "Shut down" : "Start work mode";
-  $("srMode").innerHTML = fb.sr ? (work ? "· On" : "· Off") : "";
-  wb.className = work ? "pill stop" : "pill inv";
-  $("fbState").className = "live num" + (fb.ok ? " ok" : "");
-  var hum = fb.sr && fb.sr.sensors && fb.sr.sensors.humidity;
-  $("srTemp").innerHTML = fb.ok ? (temp("sr") || "live") : "offline";
-  $("mrTemp").innerHTML = temp("mr");
-}
-function setLocal(room, obj){
-  fb[room] = fb[room] || {};
-  fb[room].control = fb[room].control || {};
-  for (var k in obj) fb[room].control[k] = obj[k];
-}
-tap($("workBtn"), function(){
-  if (!fb.ok){ toast("Not connected to Firebase"); return; }
-  var work = ctl("sr").scene !== "work";
-  var up = {scene: work ? "work" : "shutdown", light1: work, light2: work, light3: work};
-  if (!work) up.fan = false;
-  setLocal("sr", up); renderRelays(); fbPatch(SR + "/control", up);
-  toast(work ? "Work mode on" : "Studio shutdown");
-  tick();
-});
-function onTile(e){
-  var el = e.target;
-  while (el && !el.getAttribute("data-room")) el = el.parentNode === document ? null : el.parentNode;
-  if (!el) return;
-  var room = el.getAttribute("data-room"), t = (room === "sr" ? SR_TILES : MR_TILES)[+el.getAttribute("data-i")];
-  if (t.kind === "door") return;
-  if (!fb.ok){ toast("Not connected to Firebase"); return; }
-  if (t.fan && ctl(room).fanAutoMode === true){ toast("Fan is in Auto mode · switch to Manual in CC Dashboard"); return; }
-  var body = {};
-  body[t.field] = !(ctl(room)[t.field] === true);
-  setLocal(room, body); renderRelays();
-  fbPatch((room === "sr" ? SR : MR) + "/control", body);
-  toast((room === "sr" ? "Studio " : "Machine room ") + t.label.toLowerCase() + (body[t.field] ? " on" : " off"));
-  tick();
-}
-tap($("srTiles"), onTile);
-tap($("mrTiles"), onTile);
-
-/* ---------- Settings ---------- */
-tap($("gear"), function(){ $("cfg").value = JSON.stringify(cfg, null, 2); $("settings").style.display = "block"; });
-tap($("cfgCancel"), function(){ $("settings").style.display = "none"; });
-tap($("cfgReset"), function(){ $("cfg").value = JSON.stringify(DEFAULT_CFG, null, 2); });
-tap($("cfgSave"), function(){
+/* =================== settings =================== */
+function openSettings() { $('cfg').value = JSON.stringify(cfg, null, 2); $('settings').className = 'on'; }
+tap($('cfgCancel'), function () { $('settings').className = ''; });
+tap($('cfgReset'), function () { $('cfg').value = JSON.stringify(DEFAULT_CFG, null, 2); });
+tap($('cfgSave'), function () {
   try {
-    var c = JSON.parse($("cfg").value);
+    var c = JSON.parse($('cfg').value);
     if (!c.firebaseURL || !c.lightModes || !c.reminders) throw 0;
-    cfg = c; save("cfg", cfg);
-    $("settings").style.display = "none";
-    renderLB(); fbPoll(); weather(); wledStatus(); tick();
-    toast("Settings saved");
-  } catch(e){ toast("Invalid JSON · check it and save again"); }
+    cfg = c; save('ccd-cfg', cfg); $('settings').className = '';
+    renderLB(); poll(); weather(); wledStatus(); tick(); toast('Settings saved', '', 'ok');
+  } catch (e) { toast('Invalid settings', 'Check the JSON and save again', 'err'); }
 });
+var lp; $('clockW').addEventListener('touchstart', function () { lp = setTimeout(openSettings, 900); }, { passive: true });
+['touchend', 'touchmove'].forEach(function (ev) { $('clockW').addEventListener(ev, function () { clearTimeout(lp); }, { passive: true }); });
 
-/* ---------- Start ---------- */
-renderLB(); renderRelays();
-tick(); shift(); weather(); wledStatus(); fbPoll();
+/* =================== start =================== */
+buildTiles(); renderSystem(); renderLB(); renderInbox(); tick(); shift(); weather(); poll(); wledStatus();
 setInterval(tick, 1000);
-setInterval(fbPoll, 3000);
+setInterval(poll, 3000);
+setInterval(wledStatus, 5000);
 setInterval(shift, 60000);
 setInterval(weather, 30 * 60000);
-setInterval(wledStatus, 30000);
+setInterval(renderInbox, 60000);
 })();
 </script>
 </body>
