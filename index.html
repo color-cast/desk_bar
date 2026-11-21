@@ -160,6 +160,35 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;heigh
 .track{height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:3px}
 .track i{display:block;height:100%;border-radius:inherit;background:var(--c2,var(--ok))}
 
+/* machines page */
+.mc-hero{display:flex;align-items:center;gap:14px;margin:12px 0 10px;flex:none}
+.mc-ring{flex:none;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;color:var(--st);background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 2px var(--st);transition:color .3s,box-shadow .3s}
+.mc-ring svg{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.mc-running .mc-ring{animation:glow 1.6s ease-in-out infinite}
+@keyframes glow{50%{box-shadow:inset 0 0 0 2px var(--st),0 0 18px var(--st)}}
+.mc-state{font-size:28px;font-weight:600;line-height:1.1;color:var(--st)}
+.mc-sub{font-size:12.5px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc-power{flex:none;height:50px}
+.mc-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;flex:1;min-height:0}
+.mbtn{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);min-height:44px;transition:opacity .2s,background .2s}
+.mbtn svg{width:22px;height:22px;fill:currentColor}
+.mbtn b{font-size:14px;font-weight:600}
+.mbtn small{font-size:10.5px;color:var(--muted)}
+.mbtn.play{color:#86efac;background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3)}
+.mbtn.pause{color:#fde68a;background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3)}
+.mbtn.dis{opacity:.35}
+.mbtn:active{transform:scale(.98)}
+.hold{position:relative;overflow:hidden}
+.hold::before{content:"";position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.16);pointer-events:none}
+.hold.holding::before{width:100%;transition:width .9s linear}
+.mc-alarm{display:none;margin:0 0 8px;padding:7px 10px;border-radius:12px;background:rgba(245,158,11,.16);border:1px solid rgba(245,158,11,.45);font-size:13px;color:#fcd34d;flex:none;animation:pulse 1.2s ease-in-out infinite}
+.mc-alarm.show{display:block}
+.mc-alarm span{display:block;font-size:11.5px;color:#fbbf24;opacity:.8}
+.door-row{display:flex;align-items:center;gap:10px;margin-top:auto}
+.door-row .chip{height:30px}
+.door-btn{flex:1;height:46px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;justify-content:center;gap:7px}
+.door-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
 /* dots */
 #dots{position:absolute;left:50%;bottom:0;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:5px 12px;z-index:6;border-radius:999px;border:1px solid transparent}
 #dots i{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.22);transition:width .25s,background .25s}
@@ -269,6 +298,39 @@ body.night #night{display:block}
       </div>
     </div></section>
 
+    <!-- ===== Page 4: Machines ===== -->
+    <section class="page" data-name="Machines"><div class="grid">
+      <div class="w card mc" style="grid-area:1/1/7/8;--c:#f472b6;--st:#5b6472" id="mcW">
+        <div class="w-title"><span id="mcName">Embroidery machine</span><span class="w-sub" id="mcSub"></span></div>
+        <div class="mc-hero">
+          <div class="mc-ring"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M5 20v-7h5V6.5C10 5.1 11.1 4 12.5 4H19a2 2 0 0 1 2 2v4h-6v10M15 10v4.5M13.5 14.5h3"/></svg></div>
+          <div style="min-width:0"><div class="mc-state" id="mcState">–</div><div class="mc-sub" id="mcInfo">Waiting for Firebase</div></div>
+        </div>
+        <div class="mc-alarm" id="mcAlarm">🔔 Machine buzzer<span>Thread break or design finished — check the machine</span></div>
+        <button class="ctl mc-power hold" id="mcPower" role="switch" aria-checked="false">
+          <span class="ctl-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M6.4 6.6a8 8 0 1 0 11.2 0"/></svg></span>
+          <span class="ctl-txt"><b>Power</b><small>Hold to switch</small></span>
+          <span class="sw"><span class="sw-i sw-on">ON</span><span class="sw-i sw-off">OFF</span><span class="knob"></span></span>
+        </button>
+        <div class="mc-btns">
+          <button class="mbtn play hold" id="mcPlay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.2-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/></svg><b>Play</b><small>Hold to start</small></button>
+          <button class="mbtn pause" id="mcPause"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4.2" height="14" rx="1.2"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2"/></svg><b>Pause</b><small>Tap</small></button>
+        </div>
+      </div>
+      <div class="w card pv-card" style="grid-area:1/8/4/13;--c:#a78bfa">
+        <div class="w-title">Machine room</div>
+        <div class="pv" id="mrT">--<small>°C</small></div>
+        <div class="ps" id="mrS"></div>
+      </div>
+      <div class="w card" style="grid-area:4/8/7/13;--c:#f87171">
+        <div class="w-title">Door<span class="w-sub" id="mrDoorSub"></span></div>
+        <div class="door-row">
+          <span class="chip" id="mrDoor">–</span>
+          <button class="door-btn hold" id="mrUnlock"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 7.7-1.5"/></svg>Hold to unlock</button>
+        </div>
+      </div>
+    </div></section>
+
   </div>
   <div id="dots"></div>
   <div class="toast" id="toast"><b id="toastT"></b><span id="toastS"></span></div>
@@ -299,7 +361,16 @@ var DEFAULT_CFG = {
   reminders: [
     { time: '09:00', text: 'Open studio' },
     { time: '17:30', text: 'Pickup' }
-  ]
+  ],
+  // Machines page: Firebase keys under /colorcast/machineRoom (control = we write, status = ESP32 writes)
+  machine: {
+    name: 'Embroidery machine',
+    powerField: 'embPower',     // control: true / false  (machine power relay)
+    cmdField: 'embCmd',         // control: "play" / "pause"  (ESP32 presses the button, then sets "none")
+    stateField: 'embState',     // status: "running" / "paused" / "stopped"  (from the panel LED)
+    buzzerField: 'embBuzzer',   // status: true while the machine buzzer sounds
+    doorUnlockField: 'doorUnlock' // control: true = unlock the door (ESP32 relocks and sets false)
+  }
 };
 var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -395,11 +466,11 @@ function tick() {
   // night: night hours or studio off, unless the buzzer rings or the screen was tapped
   var night = (isNightHour(h) || !studioOn()) && !ringing() && Date.now() > wakeUntil;
   document.body.classList.toggle('night', night);
-  if (night) { $('nT').innerHTML = '<span class="grp">' + pad(h12) + '</span><span class="colon"><i></i><i></i></span><span class="grp">' + pad(m) + '</span>'; $('nAp').textContent = h < 12 ? 'AM' : 'PM'; $('nD').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; $('nE').textContent = nr ? nr.r.time + ' · ' + nr.r.text : ''; }
+  if (night) { $('nT').innerHTML = '<span class="grp">' + pad(h12) + '</span><span class="colon"><i></i><i></i></span><span class="grp">' + pad(m) + '</span>'; $('nAp').textContent = h < 12 ? 'AM' : 'PM'; $('nD').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; $('nE').textContent = (nr ? nr.r.time + ' · ' + nr.r.text : '') + (machineState() === 'running' ? (nr ? '  ·  ' : '') + mcfg().name + ' running' : ''); }
 
   // rule: back to Home after homeIdleSec without touch (not while the buzzer rings)
   if (cur !== 0 && !ringing() && Date.now() - lastTouch > cfg.homeIdleSec * 1000) goPage(0);
-  renderStatus();
+  renderStatus(); renderMachine();
 }
 function renderStatus() {
   var p = [];
@@ -489,7 +560,7 @@ function poll() {
   req('GET', SR, null, got('sr')); req('GET', MR, null, got('mr'));
 }
 function watchChanges() {   // page rules + activity log, only on real changes
-  var now = { ring: ringing(), door: doorOpen(), studio: studioOn(), pat: ctl('sr').buzzerPattern };
+  var now = { ring: ringing(), door: doorOpen(), studio: studioOn(), pat: ctl('sr').buzzerPattern, mst: machineState(), mbuzz: mBuzz() };
   if (prev) {
     if (now.ring && !prev.ring) {
       var name = BUZZ[now.pat] || 'Buzzer';
@@ -498,6 +569,14 @@ function watchChanges() {   // page rules + activity log, only on real changes
     }
     if (!now.ring && prev.ring && Date.now() > ackUntil) logEvent('Buzzer stopped', 'Acknowledged elsewhere', 'ok');
     if (now.door !== prev.door) logEvent(now.door ? 'Machine room door opened' : 'Machine room door closed', '', now.door ? 'warn' : 'ok');
+    if (now.mst !== prev.mst && prev.mst !== 'unknown' && now.mst !== 'unknown') {
+      var ml = { off: ['switched off', 'info'], ready: ['powered on', 'ok'], running: ['running', 'ok'], paused: ['paused', 'warn'], stopped: ['stopped', 'info'] }[now.mst];
+      logEvent(mcfg().name + ' ' + ml[0], '', ml[1]);
+    }
+    if (now.mbuzz && !prev.mbuzz) {
+      logEvent('🔔 ' + mcfg().name, 'Machine buzzer — check thread / design', 'warn'); toast('🔔 ' + mcfg().name, 'Machine buzzer is sounding', 'warn');
+      vibrate([300, 150, 300]); wakeUntil = Date.now() + 60000; goPage(3);
+    }
     if (now.studio !== prev.studio) logEvent(now.studio ? 'Studio on' : 'Studio off', now.studio ? 'Work mode or a light switched on' : 'Going to night clock', now.studio ? 'ok' : 'info');
   }
   prev = now;
@@ -599,6 +678,68 @@ function acknowledge() {   // same as the studio button and CC Dashboard: pulse 
   setTimeout(function () { if (cur === 1) goPage(0); }, 8000);
 }
 tap($('ackBtn'), acknowledge);
+
+/* =================== machines (embroidery machine + machine room door) =================== */
+var MST = { off: ['Off', '#5b6472', 'Machine power is off'], ready: ['Ready', '#60a5fa', 'Powered on · press Play'], running: ['Running', '#22c55e', ''],
+            paused: ['Paused', '#f59e0b', 'Hold Play to continue'], stopped: ['Stopped', '#94a3b8', 'Design finished or stopped'], unknown: ['–', '#5b6472', 'Waiting for Firebase'] };
+var mcSince = 0, mcLast = null;
+function mcfg() { return cfg.machine || DEFAULT_CFG.machine; }
+function mStatus() { return (fb.mr && fb.mr.status) || {}; }
+function mBuzz() { return mStatus()[mcfg().buzzerField] === true; }
+function machineState() {
+  if (!fb.mr) return 'unknown';
+  var m = mcfg(); if (ctl('mr')[m.powerField] !== true) return 'off';
+  var st = mStatus()[m.stateField]; return (st === 'running' || st === 'paused' || st === 'stopped') ? st : 'ready';
+}
+function dur(ms) { var m = Math.floor(ms / 60000); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min'; }
+function renderMachine() {
+  var st = machineState(), d = MST[st], w = $('mcW'), on = st !== 'off' && st !== 'unknown';
+  if (st === 'running' && mcLast !== 'running') mcSince = Date.now();
+  mcLast = st;
+  w.className = 'w card mc mc-' + st; w.style.setProperty('--st', d[1]);
+  $('mcName').textContent = mcfg().name;
+  $('mcState').textContent = d[0];
+  $('mcInfo').textContent = st === 'running' ? 'Running for ' + dur(Date.now() - mcSince) : d[2];
+  $('mcSub').textContent = fb.ok ? (on ? 'Power on' : 'Power off') : (fb.tried ? 'Firebase offline' : '');
+  var p = $('mcPower'); p.className = 'ctl mc-power hold' + (on ? ' on' : '') + (!fb.mr ? ' gone' : ''); p.setAttribute('aria-checked', on ? 'true' : 'false');
+  p.querySelector('small').textContent = on ? 'On · hold to switch off' : 'Off · hold to switch on';
+  $('mcPlay').className = 'mbtn play hold' + (on && st !== 'running' ? '' : ' dis');
+  $('mcPause').className = 'mbtn pause' + (st === 'running' ? '' : ' dis');
+  $('mcAlarm').className = 'mc-alarm' + (mBuzz() ? ' show' : '');
+  // machine room side cards
+  var tm = temp('mr'), c = ctl('mr'), hm = fb.mr && fb.mr.sensors && fb.mr.sensors.humidity;
+  $('mrT').innerHTML = (tm || '--') + '<small>°C</small>';
+  $('mrS').textContent = fb.mr ? (hm != null ? 'Humidity ' + Math.round(hm) + '% · ' : '') + 'Fan ' + (c.fan ? 'on' : 'off') + (c.fanAutoMode ? ' (auto)' : '') + ' · Light ' + (c.light ? 'on' : 'off') : '';
+  var o = doorOpen(); $('mrDoor').textContent = fb.mr ? (o ? 'Open' : 'Closed') : '–';
+  $('mrDoor').style.cssText = o ? 'background:rgba(239,68,68,.2);color:#fca5a5' : '';
+  $('mrDoorSub').textContent = 'Machine room';
+}
+// press-and-hold for anything that starts a machine or opens a door (no accidental taps)
+function hold(el, label, fn) {
+  var t = null, fired = false, touch = 'ontouchstart' in window;
+  function start() { if (el.classList.contains('dis')) { toast(label.dis || 'Not available now', '', 'warn'); return; } fired = false; el.classList.add('holding'); t = setTimeout(function () { t = null; fired = true; el.classList.remove('holding'); vibrate(40); fn(); }, 900); }
+  function stop() { if (t) { clearTimeout(t); t = null; el.classList.remove('holding'); if (!fired) toast(label.hint, '', ''); } }
+  el.addEventListener(touch ? 'touchstart' : 'mousedown', start, touch ? { passive: true } : false);
+  (touch ? ['touchend', 'touchcancel'] : ['mouseup', 'mouseleave']).forEach(function (ev) { el.addEventListener(ev, stop, false); });
+}
+function mReady() { if (!fb.ok) { toast('Not connected', 'Firebase is offline', 'err'); return false; } return true; }
+function mCmd(cmd) {
+  if (!mReady()) return;
+  var b = {}; b[mcfg().cmdField] = cmd; patch('mr', b);
+  toast(cmd === 'play' ? '▶ Play sent' : '⏸ Pause sent', mcfg().name, cmd === 'play' ? 'ok' : 'warn');
+}
+hold($('mcPower'), { hint: 'Hold to switch the machine power' }, function () {
+  if (!mReady()) return;
+  var on = machineState() !== 'off', b = {}; b[mcfg().powerField] = !on; patch('mr', b);
+  toast(mcfg().name + (on ? ' off' : ' on'), '', on ? '' : 'ok');
+});
+hold($('mcPlay'), { hint: 'Hold Play to start the machine', dis: 'Switch the power on first' }, function () { mCmd('play'); });
+tap($('mcPause'), function () { if ($('mcPause').classList.contains('dis')) { toast('Machine is not running', '', 'warn'); return; } mCmd('pause'); });
+hold($('mrUnlock'), { hint: 'Hold to unlock the door' }, function () {
+  if (!mReady()) return;
+  var b = {}; b[mcfg().doorUnlockField] = true; patch('mr', b);
+  toast('🔓 Door unlocked', 'Machine room', 'ok'); logEvent('Machine room door unlocked', 'From the desk panel', 'info');
+});
 
 /* =================== desk buddy light bar (WLED-style API) =================== */
 var lb = load('ccd-lb', { on: false, bri: 150, mode: 0 }), wledOnline = false;
