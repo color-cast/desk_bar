@@ -309,11 +309,11 @@ body.night #night{display:block}
         <div class="mc-alarm" id="mcAlarm">🔔 Machine buzzer<span>Thread break or design finished — check the machine</span></div>
         <button class="ctl mc-power hold" id="mcPower" role="switch" aria-checked="false">
           <span class="ctl-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M6.4 6.6a8 8 0 1 0 11.2 0"/></svg></span>
-          <span class="ctl-txt"><b>Power</b><small>Hold to switch</small></span>
+          <span class="ctl-txt"><b>Power</b><small>–</small></span>
           <span class="sw"><span class="sw-i sw-on">ON</span><span class="sw-i sw-off">OFF</span><span class="knob"></span></span>
         </button>
         <div class="mc-btns">
-          <button class="mbtn play hold" id="mcPlay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.2-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/></svg><b>Play</b><small>Hold to start</small></button>
+          <button class="mbtn play" id="mcPlay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.2-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/></svg><b>Play</b><small>Tap</small></button>
           <button class="mbtn pause" id="mcPause"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4.2" height="14" rx="1.2"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2"/></svg><b>Pause</b><small>Tap</small></button>
         </div>
       </div>
@@ -681,8 +681,8 @@ tap($('ackBtn'), acknowledge);
 
 /* =================== machines (embroidery machine + machine room door) =================== */
 var MST = { off: ['Off', '#5b6472', 'Machine power is off'], ready: ['Ready', '#60a5fa', 'Powered on · press Play'], running: ['Running', '#22c55e', ''],
-            paused: ['Paused', '#f59e0b', 'Hold Play to continue'], stopped: ['Stopped', '#94a3b8', 'Design finished or stopped'], unknown: ['–', '#5b6472', 'Waiting for Firebase'] };
-var mcSince = 0, mcLast = null;
+            paused: ['Paused', '#f59e0b', 'Tap Play to continue'], stopped: ['Stopped', '#94a3b8', 'Design finished or stopped'], unknown: ['–', '#5b6472', 'Waiting for Firebase'] };
+var mcSince = 0, mcLast = null, skipClick = 0;
 function mcfg() { return cfg.machine || DEFAULT_CFG.machine; }
 function mStatus() { return (fb.mr && fb.mr.status) || {}; }
 function mBuzz() { return mStatus()[mcfg().buzzerField] === true; }
@@ -702,8 +702,8 @@ function renderMachine() {
   $('mcInfo').textContent = st === 'running' ? 'Running for ' + dur(Date.now() - mcSince) : d[2];
   $('mcSub').textContent = fb.ok ? (on ? 'Power on' : 'Power off') : (fb.tried ? 'Firebase offline' : '');
   var p = $('mcPower'); p.className = 'ctl mc-power hold' + (on ? ' on' : '') + (!fb.mr ? ' gone' : ''); p.setAttribute('aria-checked', on ? 'true' : 'false');
-  p.querySelector('small').textContent = on ? 'On · hold to switch off' : 'Off · hold to switch on';
-  $('mcPlay').className = 'mbtn play hold' + (on && st !== 'running' ? '' : ' dis');
+  p.querySelector('small').textContent = on ? 'On · hold to switch off' : 'Off · tap to switch on';
+  $('mcPlay').className = 'mbtn play' + (on && st !== 'running' ? '' : ' dis');
   $('mcPause').className = 'mbtn pause' + (st === 'running' ? '' : ' dis');
   $('mcAlarm').className = 'mc-alarm' + (mBuzz() ? ' show' : '');
   // machine room side cards
@@ -717,7 +717,7 @@ function renderMachine() {
 // press-and-hold for anything that starts a machine or opens a door (no accidental taps)
 function hold(el, label, fn) {
   var t = null, fired = false, touch = 'ontouchstart' in window;
-  function start() { if (el.classList.contains('dis')) { toast(label.dis || 'Not available now', '', 'warn'); return; } fired = false; el.classList.add('holding'); t = setTimeout(function () { t = null; fired = true; el.classList.remove('holding'); vibrate(40); fn(); }, 900); }
+  function start() { if (label.only && !label.only()) return; if (el.classList.contains('dis')) { toast(label.dis || 'Not available now', '', 'warn'); return; } fired = false; el.classList.add('holding'); t = setTimeout(function () { t = null; fired = true; el.classList.remove('holding'); vibrate(40); skipClick = Date.now() + 600; fn(); }, 900); }
   function stop() { if (t) { clearTimeout(t); t = null; el.classList.remove('holding'); if (!fired) toast(label.hint, '', ''); } }
   el.addEventListener(touch ? 'touchstart' : 'mousedown', start, touch ? { passive: true } : false);
   (touch ? ['touchend', 'touchcancel'] : ['mouseup', 'mouseleave']).forEach(function (ev) { el.addEventListener(ev, stop, false); });
@@ -728,12 +728,15 @@ function mCmd(cmd) {
   var b = {}; b[mcfg().cmdField] = cmd; patch('mr', b);
   toast(cmd === 'play' ? '▶ Play sent' : '⏸ Pause sent', mcfg().name, cmd === 'play' ? 'ok' : 'warn');
 }
-hold($('mcPower'), { hint: 'Hold to switch the machine power' }, function () {
-  if (!mReady()) return;
-  var on = machineState() !== 'off', b = {}; b[mcfg().powerField] = !on; patch('mr', b);
-  toast(mcfg().name + (on ? ' off' : ' on'), '', on ? '' : 'ok');
+function mPower(v) { if (!mReady()) return; var b = {}; b[mcfg().powerField] = v; patch('mr', b); toast(mcfg().name + (v ? ' on' : ' off'), '', v ? 'ok' : ''); }
+function mIsOn() { var st = machineState(); return st !== 'off' && st !== 'unknown'; }
+// power: tap = on, hold = off (switching off mid-design loses the position)
+hold($('mcPower'), { hint: 'Hold to switch the machine off', only: mIsOn }, function () { mPower(false); });
+tap($('mcPower'), function () { if (Date.now() < skipClick || mIsOn()) return; mPower(true); });
+tap($('mcPlay'), function () {
+  if ($('mcPlay').classList.contains('dis')) { toast(mIsOn() ? 'Already running' : 'Switch the power on first', '', 'warn'); return; }
+  mCmd('play');
 });
-hold($('mcPlay'), { hint: 'Hold Play to start the machine', dis: 'Switch the power on first' }, function () { mCmd('play'); });
 tap($('mcPause'), function () { if ($('mcPause').classList.contains('dis')) { toast('Machine is not running', '', 'warn'); return; } mCmd('pause'); });
 hold($('mrUnlock'), { hint: 'Hold to unlock the door' }, function () {
   if (!mReady()) return;
