@@ -210,7 +210,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
 /* night clock */
 #night{position:absolute;inset:0;background:#000;z-index:10;display:none}
 body.night #night{display:block}
-#nclock{position:absolute;text-align:center;transition:left 3s,top 3s}
+/* standby clock floats slowly (burn-in protection): GPU transform only, no left/top layout animation */
+#nclock{position:absolute;left:0;top:0;text-align:center;transform:translate3d(170px,95px,0);transition:transform 20s cubic-bezier(.45,0,.55,1);will-change:transform;-webkit-backface-visibility:hidden;backface-visibility:hidden}
 #nclock .t{font-family:"Barlow Clock",Roboto,sans-serif;font-size:96px;font-weight:600;line-height:.82;color:#a8e036;display:flex;align-items:center;justify-content:center}
 #nclock .t .grp::after{background:#000}
 #nclock .ap{font-family:"Barlow Clock",Roboto,sans-serif;font-weight:600;font-size:15px;color:#7da82a;text-align:left;margin:0 0 4px 4px}
@@ -468,7 +469,7 @@ function tick() {
   // night: night hours or studio off, unless the buzzer rings or the screen was tapped
   var night = (isNightHour(h) || !studioOn()) && !ringing() && Date.now() > wakeUntil;
   document.body.classList.toggle('night', night);
-  if (night) { $('nT').innerHTML = '<span class="grp">' + pad(h12) + '</span><span class="colon"><i></i><i></i></span><span class="grp">' + pad(m) + '</span>'; $('nAp').textContent = h < 12 ? 'AM' : 'PM'; $('nD').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; $('nE').textContent = (nr ? nr.r.time + ' · ' + nr.r.text : '') + (machineState() === 'running' ? (nr ? '  ·  ' : '') + mcfg().name + ' running' : ''); }
+  if (night) { var nk = pad(h12) + pad(m); if ($('nT').getAttribute('data-k') !== nk) { $('nT').setAttribute('data-k', nk); $('nT').innerHTML = '<span class="grp">' + pad(h12) + '</span><span class="colon"><i></i><i></i></span><span class="grp">' + pad(m) + '</span>'; } $('nAp').textContent = h < 12 ? 'AM' : 'PM'; $('nD').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; $('nE').textContent = (nr ? nr.r.time + ' · ' + nr.r.text : '') + (machineState() === 'running' ? (nr ? '  ·  ' : '') + mcfg().name + ' running' : ''); }
 
   // rule: back to Home after homeIdleSec without touch (not while the buzzer rings)
   if (cur !== 0 && !ringing() && Date.now() - lastTouch > cfg.homeIdleSec * 1000) goPage(0);
@@ -485,7 +486,12 @@ function renderStatus() {
 function shift() {
   var x = Math.round(Math.random() * 4 - 2), y = Math.round(Math.random() * 4 - 2);
   pager.style.transform = 'translate(' + x + 'px,' + y + 'px)';
-  var n = $('nclock'); n.style.left = (40 + Math.random() * 300) + 'px'; n.style.top = (40 + Math.random() * 140) + 'px';
+}
+// standby clock: drift to a new random spot every 20 s with a 20 s ease, so it is always gently moving
+function drift() {
+  var n = $('nclock'), w = n.offsetWidth || 300, h = n.offsetHeight || 170;
+  var x = Math.round(16 + Math.random() * Math.max(0, 640 - w - 32)), y = Math.round(16 + Math.random() * Math.max(0, 360 - h - 32));
+  n.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
 }
 tap($('night'), function () { wakeUntil = Date.now() + 60000; tick(); });
 
@@ -836,6 +842,7 @@ setInterval(tick, 1000);
 setInterval(poll, 3000);
 setInterval(wledStatus, 5000);
 setInterval(shift, 60000);
+setInterval(drift, 20000); setTimeout(drift, 500);
 setInterval(weather, 30 * 60000);
 setInterval(renderInbox, 60000);
 })();
